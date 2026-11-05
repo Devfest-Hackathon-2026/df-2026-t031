@@ -7,8 +7,11 @@ import {AREA_CENTER,EXPLORER_FOCUS} from '../domain/area.ts'
 import {formatTime} from '../domain/time.ts'
 import type {AreaDataset,LatLng,Spot,SunPosition} from '../domain/types.ts'
 import type {RouteSegment} from '../domain/route.ts'
+import type {SeatLevel} from '../domain/seat.ts'
+/** 空席確率による色: 緑＝座れそう・黄＝五分五分・赤＝混みそう */
+export const LEVEL_COLOR:Record<SeatLevel,string>={high:'#4f9d69',mid:'#dcae35',low:'#d9604c'}
 export interface CityHandle{zoom:(factor:number)=>void;locate:(p:LatLng)=>void;reset:()=>void;north:()=>void}
-interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void;route?:RouteSegment[]|null}
+interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void;route?:RouteSegment[]|null;levels?:ReadonlyMap<string,SeatLevel>}
 interface Runtime{renderer:T.WebGLRenderer;scene:T.Scene;camera:T.PerspectiveCamera;controls:OrbitControls;sunLight:T.DirectionalLight;hemi:T.HemisphereLight;path:T.Group;orb:T.Mesh;ray:T.Line;markers:T.InstancedMesh|null;route:T.Group|null;anchor:T.Vector3;invalidate:()=>void;flyTo:(p:T.Vector3,distance?:number)=>void;reset:()=>void}
 const DEFAULT_FOCUS=EXPLORER_FOCUS
 const RADIUS=145
@@ -97,9 +100,9 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
  const lastSelection=useRef(props.selected)
  useEffect(()=>{const r=runtime.current;if(!r)return;if(r.markers){r.scene.remove(r.markers);disposeObject(r.markers)}
   const markers=new T.InstancedMesh(new T.SphereGeometry(2.4,8,6),new T.MeshBasicMaterial({color:'#ffffff',depthTest:false}),props.spots.length),dummy=new T.Object3D();markers.renderOrder=3
-  props.spots.forEach((s,i)=>{const active=s.id===props.selected;dummy.position.copy(worldPoint(s.position,active?5:3));dummy.scale.setScalar(active?2:1);dummy.updateMatrix();markers.setMatrixAt(i,dummy.matrix);markers.setColorAt(i,new T.Color(active?'#f9c874':s.kind==='bench'||s.kind==='shelter'?'#658e75':'#7194a2'))});markers.computeBoundingSphere();r.markers=markers;r.scene.add(markers)
+  props.spots.forEach((s,i)=>{const active=s.id===props.selected;dummy.position.copy(worldPoint(s.position,active?5:3));dummy.scale.setScalar(active?2:1);dummy.updateMatrix();markers.setMatrixAt(i,dummy.matrix);const level=props.levels?.get(s.id);markers.setColorAt(i,new T.Color(level?LEVEL_COLOR[level]:active?'#f9c874':'#7194a2'))});markers.computeBoundingSphere();r.markers=markers;r.scene.add(markers)
   if(lastSelection.current!==props.selected){const spot=props.spots.find(s=>s.id===props.selected);if(spot)r.flyTo(worldPoint(spot.position));lastSelection.current=props.selected}r.invalidate()
- },[props.spots,props.selected,ready])
+ },[props.spots,props.selected,props.levels,ready])
  return <div ref={container} className={'city-canvas '+(props.adding?'is-adding':'')} data-renderer-state={ready?'ready':'loading'}>
   {!ready?<div className="scene-loading"><span/>3Dの街並みを準備しています</div>:null}
   <div ref={label} className="scene-sun-label"><span>{formatTime(props.minutes)}</span><small>太陽の位置</small></div>

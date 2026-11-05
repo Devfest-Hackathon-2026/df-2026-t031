@@ -266,3 +266,11 @@ export const SEAT_LEVEL_LABEL: Record<SeatLevel, string> = {
 }
 
 export const pct = (p: number) => `${Math.round(p * 100)}%`
+
+/** 「トイレ近く」の絞り込みの距離（m）。徒歩2分ほど */
+export const TOILET_NEAR_M = 150
+
+/** 各地点から、いちばん近い targets（例: トイレ）までの直線距離（m）。targets がなければ Infinity */
+export function nearestDistanceMap(spots: Spot[], targets: Spot[]): Map<string, number> {
+  return new Map(spots.map((s) => [s.id, targets.reduce((best, t) => Math.min(best, haversineM(s.position, t.position)), Infinity)]))
+}

@@ -110,3 +110,16 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .route-pill>button:last-child:hover{background:#ffffff14}
 @media(max-width:1100px) and (min-width:761px){.route-pill{max-width:calc(100vw - 680px);min-width:220px;left:calc(50% + 105px)}}
 @media(max-width:760px){.route-pill{top:181px;left:12px;right:65px;transform:none;max-width:none;min-width:0;border-radius:18px}}
+/* 空席確率でピンを色分け（緑・黄・赤）と凡例 */
+.level-high{--level:#4f9d69}.level-mid{--level:#dcae35}.level-low{--level:#d9604c}
+.seat-legend{position:absolute;z-index:20;left:362px;bottom:34px;display:flex;flex-direction:column;gap:6px;padding:9px 11px;border-radius:13px;font-size:9px;color:#dfe2e4}
+.seat-legend span,.legend-row span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.seat-legend i,.legend-row i{width:9px;height:9px;border-radius:50%;background:var(--level);box-shadow:0 0 0 2px #ffffffcc}
+.legend-row{display:flex;gap:12px;flex-wrap:wrap;font-size:9px;color:#a9adb2;padding:2px 0 10px}
+.legend-row i{box-shadow:0 0 0 1.5px #ffffff99;width:8px;height:8px}
+.immersive-app .level-box-high .probability-ring{background:radial-gradient(closest-side,#3e4044 80%,transparent 81%),conic-gradient(#5fae78 var(--prob),#4d5055 0);color:#9fd3ae}
+.immersive-app .level-box-mid .probability-ring{background:radial-gradient(closest-side,#3e4044 80%,transparent 81%),conic-gradient(#e3b641 var(--prob),#4d5055 0);color:#efd08a}
+.immersive-app .level-box-low .probability-ring{background:radial-gradient(closest-side,#3e4044 80%,transparent 81%),conic-gradient(#e0674f var(--prob),#4d5055 0);color:#efa293}
+.immersive-app .result-prob.level-text-high{color:#8fcf9f}.immersive-app .result-prob.level-text-mid{color:#ecc867}.immersive-app .result-prob.level-text-low{color:#ec8f7c}
+@media(max-width:1100px){.seat-legend{display:none}}
+@media(min-width:1600px){.seat-legend{left:392px}}
