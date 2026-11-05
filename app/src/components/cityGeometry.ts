@@ -11,7 +11,7 @@ function shapeFrom(points:LatLng[]){const shape=new T.Shape();points.forEach((p,
 function addMerged(root:T.Group,geometries:T.BufferGeometry[],color:string,cast=false){if(!geometries.length)return;const merged=mergeGeometries(geometries,false);geometries.forEach(g=>g.dispose());if(!merged)return;const mesh=new T.Mesh(merged,new T.MeshStandardMaterial({color,roughness:.92,metalness:0}));mesh.castShadow=cast;mesh.receiveShadow=true;root.add(mesh)}
 export function createCity(dataset:AreaDataset){
  const root=new T.Group(),buckets:T.BufferGeometry[][]=Array.from({length:5},()=>[]),outlines:number[]=[],windows:number[]=[]
- const ground=new T.Mesh(new T.PlaneGeometry(7000,7000),new T.MeshStandardMaterial({color:'#e4e5dc',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.3;ground.receiveShadow=true;root.add(ground)
+ const ground=new T.Mesh(new T.PlaneGeometry(7000,7000),new T.MeshStandardMaterial({color:'#eeedea',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.3;ground.receiveShadow=true;root.add(ground)
  const distance=(p:LatLng)=>((p.lat-EXPLORER_FOCUS.lat)*1.23)**2+(p.lng-EXPLORER_FOCUS.lng)**2
  const ordered=[...dataset.buildings].sort((a,b)=>distance(a.footprint[0]??AREA_CENTER)-distance(b.footprint[0]??AREA_CENTER))
  ordered.forEach((b,index)=>{
@@ -25,16 +25,16 @@ export function createCity(dataset:AreaDataset){
    const ux=(c.x-a.x)/length,uy=(c.y-a.y)/length,nx=uy*normalSign*.12,ny=-ux*normalSign*.12
    for(let y=Math.max(b.minHeight+3,3);y<b.height-2;y+=5.2){for(let d=3;d<length-2;d+=5){if(windows.length>300000)break;const x=a.x+ux*d+nx,z=-(a.y+uy*d+ny),dx=ux*1.5,dz=-uy*1.5;windows.push(x,y,z,x+dx,y,z+dz,x+dx,y+2.5,z+dz,x,y,z,x+dx,y+2.5,z+dz,x,y+2.5,z)}}
   }
- });['#d5cec1','#c9c7bd','#dfd9cc','#c6c6bb','#d0cabe'].forEach((color,i)=>addMerged(root,buckets[i],color,true))
- const lineGeo=new T.BufferGeometry();lineGeo.setAttribute('position',new T.Float32BufferAttribute(outlines,3));root.add(new T.LineSegments(lineGeo,new T.LineBasicMaterial({color:'#f3eee4',transparent:true,opacity:.65})))
- const windowGeo=new T.BufferGeometry();windowGeo.setAttribute('position',new T.Float32BufferAttribute(windows,3));windowGeo.computeVertexNormals();root.add(new T.Mesh(windowGeo,new T.MeshStandardMaterial({color:'#819ba2',roughness:.55,side:T.DoubleSide})))
- const parkGeometries=dataset.parks.filter(p=>p.ring.length>=3).map(p=>{const g=new T.ShapeGeometry(shapeFrom(p.ring));g.rotateX(-Math.PI/2);g.translate(0,.02,0);g.deleteAttribute('uv');return g});addMerged(root,parkGeometries,'#bfe3a4')
- const count=dataset.trees.length,dummy=new T.Object3D(),trunks=new T.InstancedMesh(new T.CylinderGeometry(.35,.55,1,5),new T.MeshStandardMaterial({color:'#837d65',roughness:1}),count)
+ });['#ebe4da','#e4ddd2','#efe9e1','#e1d9ce','#e8e1d7'].forEach((color,i)=>addMerged(root,buckets[i],color,true))
+ const lineGeo=new T.BufferGeometry();lineGeo.setAttribute('position',new T.Float32BufferAttribute(outlines,3));root.add(new T.LineSegments(lineGeo,new T.LineBasicMaterial({color:'#fbf8f3',transparent:true,opacity:.7})))
+ const windowGeo=new T.BufferGeometry();windowGeo.setAttribute('position',new T.Float32BufferAttribute(windows,3));windowGeo.computeVertexNormals();root.add(new T.Mesh(windowGeo,new T.MeshStandardMaterial({color:'#a9bfd3',roughness:.45,side:T.DoubleSide})))
+ const parkGeometries=dataset.parks.filter(p=>p.ring.length>=3).map(p=>{const g=new T.ShapeGeometry(shapeFrom(p.ring));g.rotateX(-Math.PI/2);g.translate(0,.02,0);g.deleteAttribute('uv');return g});addMerged(root,parkGeometries,'#bde8ad')
+ const count=dataset.trees.length,dummy=new T.Object3D(),trunks=new T.InstancedMesh(new T.CylinderGeometry(.35,.55,1,5),new T.MeshStandardMaterial({color:'#8f7f68',roughness:1}),count)
  trunks.castShadow=true;trunks.receiveShadow=true
  const canopy=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({color:'#ffffff',flatShading:true,roughness:1}),count*3);canopy.castShadow=true;canopy.receiveShadow=true
  dataset.trees.forEach((tree,i)=>{
   const p=worldPoint(tree.position),h=Math.min(24,tree.height),r=Math.max(2.2,Math.min(7,tree.crownRadius));dummy.position.set(p.x,h*.3,p.z);dummy.scale.set(1,h*.6,1);dummy.rotation.set(0,0,0);dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix)
-  for(let j=0;j<3;j++){const angle=i*2.39+j*2.1;dummy.position.set(p.x+Math.cos(angle)*r*.4,h*.7+(j===0?r*.3:0),p.z+Math.sin(angle)*r*.4);dummy.scale.set(r*(j===0?1:.78),r*.85,r*(j===0?1:.78));dummy.rotation.set(i*.17,j*.7,i*.06);dummy.updateMatrix();canopy.setMatrixAt(i*3+j,dummy.matrix);canopy.setColorAt(i*3+j,new T.Color(['#8ca579','#9bb386','#78956d','#a7bb90'][(i+j)%4]))}
+  for(let j=0;j<3;j++){const angle=i*2.39+j*2.1;dummy.position.set(p.x+Math.cos(angle)*r*.4,h*.7+(j===0?r*.3:0),p.z+Math.sin(angle)*r*.4);dummy.scale.set(r*(j===0?1:.78),r*.85,r*(j===0?1:.78));dummy.rotation.set(i*.17,j*.7,i*.06);dummy.updateMatrix();canopy.setMatrixAt(i*3+j,dummy.matrix);canopy.setColorAt(i*3+j,new T.Color(['#7fc070','#92cd7f','#6db363','#9fd68d'][(i+j)%4]))}
  });trunks.computeBoundingSphere();canopy.computeBoundingSphere();root.add(trunks,canopy)
  return root
 }
@@ -49,6 +49,6 @@ export function createContext(context:CityContext){const root=new T.Group(),road
   const type=f.roadType||'service';if(['proposed','construction','platform','elevator'].includes(type))continue
   if(['footway','path','cycleway','pedestrian','steps'].includes(type)){paths.push(strip(f.points,roadWidth(type),.15))}else{sidewalks.push(strip(f.points,roadWidth(type)+4,.07));roads.push(strip(f.points,roadWidth(type),.12))}
  }
- addMerged(root,waters,'#a8c9cd');addMerged(root,sidewalks,'#eeeae1');addMerged(root,roads,'#a9b1b5');addMerged(root,paths,'#e7e4d6');return root
+ addMerged(root,waters,'#a3d0f2');addMerged(root,sidewalks,'#f5f4f1');addMerged(root,roads,'#c3ccd8');addMerged(root,paths,'#ffffff');return root
 }
 export function disposeObject(object:T.Object3D){const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();object.traverse(child=>{const mesh=child as T.Mesh;if(mesh.geometry)geometries.add(mesh.geometry);if(mesh.material){for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])materials.add(material)}if(child instanceof T.InstancedMesh)child.dispose()});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose())}
