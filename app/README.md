@@ -2,6 +2,14 @@
 
 既存の `src/domain` とOSMスナップショットを使い、画面・保存・API接続・Android化を追加したMVPです。キーなしの初期状態で動きます。
 
+## v0.3 — スマホとAndroidを改善
+
+3段階の下部シート、スワイプ、Androidの戻る操作、空席率の色分け、「座れそう」「トイレ近く」、アプリ内の参考経路を追加しました。PLATEAU横浜市2024年度LOD2の142棟を事前変換して同梱し、対象外はOSMを使用します。描画品質は軽量／標準を選べます。
+
+**検証:** ローカルテスト36件、Webビルド、APK生成、Android 16エミュレーターの統合テスト1件を確認。**物理Android・iPhone・実API接続・30FPSの実機測定は未確認**です。参考経路は通行可否を保証しません。
+
+起動方法、2分の説明手順、PLATEAUの出典・再変換、技術選定、残タスクは [verification-mobile.md](docs/verification-mobile.md) を参照してください。Unreal Engineは使用していません。
+
 ## v0.2 — 全画面3D探索
 
 全画面の都市模型に、半透明の情報パネル、太陽のアーチ、動く影、時間再生を重ねたUIです。初期表示は新港中央広場を中心とした横浜のOSMモデルです。
@@ -35,7 +43,7 @@ Web: http://127.0.0.1:5188/ 。API: http://127.0.0.1:8787/ 。画面だけなら
 - 日本時間での日付・時刻スライダー、日陰の時間帯、日の出・日の入り
 - 空席のルール推定と根拠、実投稿の別表示、投稿の取消
 - 地図からの地点追加と削除、お気に入り、JSONバックアップと復元
-- Google Mapsへの徒歩ルートリンク。表示する徒歩分数は直線距離からの目安
+- アプリ内の参考経路。OSM道路を結び、接続できない場合は直線の目安として区別
 - 初期読込後のオフライン再訪用サービスワーカー、PWAマニフェスト
 - Google 2D/写実的3D、OSMライブ、Open-Meteo、Google Weather、Gemini、Firebaseの任意接続
 
@@ -56,6 +64,8 @@ Web: http://127.0.0.1:5188/ 。API: http://127.0.0.1:8787/ 。画面だけなら
 
 秘密鍵に `VITE_` を付けないでください。Maps・Firebaseの公開設定はブラウザーへ渡ります。Firebase共有は有効にした後の新規投稿だけが対象です。
 
+APKや静的Webから任意のサーバーAPIを使う場合は、`VITE_API_BASE_URL=https://...` を設定してビルドします。認証・CORS・利用制限はサーバー側へ設定してください。未設定のAPKのlocalhostは開発PCには接続しません。
+
 Sites/Firebase Hostingへ `dist` を置いた静的Web版では、Node APIは動きません。Google Maps・Open-Meteo・OSMライブはブラウザーから接続できます。GeminiとGoogle Weatherはローカルの `npm run dev:all` で使う構成です。インターネット公開用APIサーバーの認証・CORS・利用制限は別途必要です。
 
 ## 予測の意味
@@ -71,12 +81,11 @@ Sites/Firebase Hostingへ `dist` を置いた静的Web版では、Node APIは動
 Androidプロジェクトを同梱しています。JDK 21とAndroid SDK 36が必要です。
 
 ```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio1\jbr'
-$env:ANDROID_HOME = 'C:\Users\kouta\AppData\Local\Android\Sdk'
+# Android Studio / JDK 21とAndroid SDK 36を用意し、JAVA_HOME・ANDROID_HOMEを各自の環境に設定
 npm run apk
 ```
 
-出力: `android/app/build/outputs/apk/debug/app-debug.apk`。デバッグ署名の開発用ビルドです。ストア公開用署名は含みません。Android実機での起動・位置情報権限・ファイル保存の確認は別途必要です。
+出力: `android/app/build/outputs/apk/debug/app-debug.apk`。v0.3.0 / versionCode 3、デバッグ署名の開発用ビルドです。ストア公開用署名は含みません。Androidエミュレーターで読込・投稿保存・経路・戻る操作を確認しました。物理端末での確認は別途必要です。
 
 ## 検証
 

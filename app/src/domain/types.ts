@@ -71,7 +71,7 @@ export interface Building {
   /** 下端の高さ（m）。地面から立っていれば 0 */
   minHeight: number
   /** measured=高さタグ / levels=階数から推定 / assumed=仮定値 */
-  heightSource: 'measured' | 'levels' | 'assumed'
+  heightSource: 'measured' | 'levels' | 'assumed' | 'plateau'
   name?: string
 }
 
@@ -110,6 +110,7 @@ export interface AreaDataset {
     /** データの基準時刻（ISO） */
     asOf: string | null
     live: boolean
+    plateauBuildings?: number
   }
 }
 

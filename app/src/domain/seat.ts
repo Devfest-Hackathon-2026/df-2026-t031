@@ -122,16 +122,16 @@ function heatFactor(wbgt: number | null, temp: number | null, shade: ShadeState)
   const shaded = isShaded(shade)
   if (wbgt !== null && wbgt >= 28) {
     return shaded
-      ? { key: 'heat', label: `暑さ指数 ${wbgt}（日陰に人が集まる）`, multiplier: 1.35 }
-      : { key: 'heat', label: `暑さ指数 ${wbgt}（日なたは座る人が減る）`, multiplier: 0.35 }
+      ? { key: 'heat', label: `暑さの参考指数 ${wbgt}（日陰に人が集まる）`, multiplier: 1.35 }
+      : { key: 'heat', label: `暑さの参考指数 ${wbgt}（日なたは座る人が減る）`, multiplier: 0.35 }
   }
   if (wbgt !== null && wbgt >= 25) {
     return shaded
-      ? { key: 'heat', label: `暑さ指数 ${wbgt}（日陰が好まれる）`, multiplier: 1.2 }
-      : { key: 'heat', label: `暑さ指数 ${wbgt}（日なたは避けられがち）`, multiplier: 0.6 }
+      ? { key: 'heat', label: `暑さの参考指数 ${wbgt}（日陰が好まれる）`, multiplier: 1.2 }
+      : { key: 'heat', label: `暑さの参考指数 ${wbgt}（日なたは避けられがち）`, multiplier: 0.6 }
   }
   if (wbgt !== null && wbgt >= 21) {
-    return shaded ? { key: 'heat', label: `暑さ指数 ${wbgt}`, multiplier: 1.05 } : { key: 'heat', label: `暑さ指数 ${wbgt}（やや暑い日なた）`, multiplier: 0.85 }
+    return shaded ? { key: 'heat', label: `暑さの参考指数 ${wbgt}`, multiplier: 1.05 } : { key: 'heat', label: `暑さの参考指数 ${wbgt}（やや暑い日なた）`, multiplier: 0.85 }
   }
   if (temp !== null && temp < 13) {
     return shaded
