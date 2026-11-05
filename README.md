@@ -15,6 +15,27 @@ DevFest GDGoC Japan Hackathon 2026 / チーム **epoku**（エントリー番号
 
 **MVP: [docs/mvp.md](docs/mvp.md)** ／ 詳細: [docs/idea.md](docs/idea.md) ／ 技術: [docs/architecture.md](docs/architecture.md) ／ ピッチ: [docs/pitch.md](docs/pitch.md) ／ 出典: [docs/sources.md](docs/sources.md)
 
+## 動くアプリから開発を始める（2026-11-05）
+
+`app/` に epoku v0.2 の実装を追加しました。**APIキーなしで起動できます。** 全画面3Dの街並み、太陽軌道、時刻に連動する影、休憩スポット検索、端末内の投稿・お気に入りが動きます。
+
+```bash
+git clone https://github.com/kaito-0827/google-hackathon.git
+cd google-hackathon/app
+npm ci
+npm run dev:all
+```
+
+Node.js 24推奨（22.18以上）。ブラウザーで **http://127.0.0.1:5188/** を開きます。`.env` はAPIを使うときだけ作成します。APIを使わない場合は `npm run dev` だけでも起動できます。
+
+- **最初に読む:** [チーム向け引き継ぎ・担当分け・優先順位](docs/TEAM_HANDOFF.md)
+- **アプリの詳細:** [app/README.md](app/README.md)
+- **API設定:** [app/docs/API_GUIDE.md](app/docs/API_GUIDE.md) と [app/.env.example](app/.env.example)
+- **開発の流れ:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **自動チェック:** [GitHub Actions](https://github.com/kaito-0827/google-hackathon/actions/workflows/ci.yml) で `app/` のテストとビルドを実行
+
+以下の「技術スタック（候補）」は会議時点の方針を記録したものです。**現在の実装は React / Vite / Three.js / SunCalc v2 / OSM / Capacitor** で、Google地図・Gemini・Weather・Firebaseは任意接続です。空席予測は学習済みAIではなく未校正のルール推定です。アプリ内の経路表示など、会議の仕様と未だ異なる点は引き継ぎ資料にまとめています。
+
 ## スケジュール
 
 | 日付 | 内容 |

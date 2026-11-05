@@ -25,3 +25,14 @@ service-account*.json
 .DS_Store
 .vscode/
 .idea/
+
+# 個人のSites連携・署名・生成物
+.openai/
+*.apk
+*.aab
+*.jks
+*.keystore
+local.properties
+coverage/
+playwright-report/
+Thumbs.db
