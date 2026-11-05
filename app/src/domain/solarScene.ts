@@ -19,3 +19,9 @@ export function solarMoments(day:string,at:LatLng):SolarMoments{
  return {dawn:minute(t.dawn),sunrise,goldenMorningEnd:minute(t.goldenHourEnd),noon,goldenEveningStart:minute(t.goldenHour),sunset,dusk:minute(t.dusk),blueMorningEnd:minute(t.blueHourMorningEnd),blueEveningStart:minute(t.blueHourEveningStart),nadir:noon+720,dayLength:sunrise!==null&&sunset!==null?sunset-sunrise:t.alwaysUp?1440:t.alwaysDown?0:null}
 }
 export function shadowRatio(altitude:number){return altitude>2?1/Math.tan(altitude*Math.PI/180):null}
+/** 指定時刻のあとに来る最初の太陽イベント（ボトムシートの「次は日没 16:38」用）。その日のイベントがすべて過ぎたら翌日の最初の光（概算）を返す */
+export function nextSolarMoment(t:SolarMoments,minutes:number):{label:string;at:number;inMin:number}|null{
+ const rows:[string,number|null][]=[['最初の光',t.dawn],['日の出',t.sunrise],['太陽南中',t.noon],['日没',t.sunset],['最後の光',t.dusk]]
+ const next=rows.find(([,at])=>at!==null&&at>minutes)??(t.dawn!==null?['最初の光',t.dawn+1440] as [string,number]:null)
+ return next&&next[1]!==null?{label:next[0],at:next[1],inMin:next[1]-minutes}:null
+}
