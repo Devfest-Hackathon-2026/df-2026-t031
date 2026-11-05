@@ -49,7 +49,7 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   let dirty=true,frame=0,destination:T.Vector3|null=null,lastBearing=-999,lastStats=0
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches
   const invalidate=()=>{dirty=true}
-  const r:Runtime={renderer,scene,camera,controls,sunLight:light,hemi,path:orbit,orb,ray,markers:null,anchor,invalidate,flyTo(p){if(reducedMotion){const offset=p.clone().sub(controls.target);controls.target.copy(p);camera.position.add(offset)}else destination=p.clone();dirty=true},reset(){destination=null;controls.reset();dirty=true}}
+  const r:Runtime={renderer,scene,camera,controls,sunLight:light,hemi,path:orbit,orb,ray,markers:null,anchor,invalidate,flyTo(p){if(reducedMotion||lightQuality){const offset=p.clone().sub(controls.target);controls.target.copy(p);camera.position.add(offset)}else destination=p.clone();dirty=true},reset(){destination=null;controls.reset();dirty=true}}
   runtime.current=r;controls.addEventListener('change',invalidate)
   let disposed=false
   if(props.dataset.meta.plateauBuildings){new GLTFLoader().load(`${import.meta.env.BASE_URL}data/plateau-nishi.glb`,gltf=>{
