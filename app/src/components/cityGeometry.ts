@@ -39,7 +39,7 @@ export function createCity(dataset:AreaDataset){
  return root
 }
 function roadWidth(type:string){return ({motorway:20,trunk:18,primary:16,secondary:13,tertiary:10,residential:7,unclassified:7,service:5,pedestrian:8,cycleway:3,footway:2.6,path:2.2,steps:2.5,track:3.5} as Record<string,number>)[type]??4}
-function strip(points:[number,number][],width:number,height:number){
+export function strip(points:[number,number][],width:number,height:number){
  const p=points.map(([lat,lng])=>cityProjection.toXY({lat,lng})),vertices:number[]=[]
  for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],len=Math.hypot(b.x-a.x,b.y-a.y);if(len<.1)continue;const x=-(b.y-a.y)/len*width/2,y=(b.x-a.x)/len*width/2;const v=[[a.x+x,height,-a.y-y],[a.x-x,height,-a.y+y],[b.x-x,height,-b.y+y],[b.x+x,height,-b.y-y]];for(const j of [0,1,2,0,2,3])vertices.push(...v[j])}
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.computeVertexNormals();return geometry

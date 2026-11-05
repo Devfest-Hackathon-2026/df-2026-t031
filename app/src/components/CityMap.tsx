@@ -1,14 +1,15 @@
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react'
 import * as T from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
-import {createCity,createContext,disposeObject,worldPoint,type CityContext} from './cityGeometry.ts'
+import {createCity,createContext,disposeObject,worldPoint,strip,type CityContext} from './cityGeometry.ts'
 import {solarTrack,solarVector} from '../domain/solarScene.ts'
 import {AREA_CENTER,EXPLORER_FOCUS} from '../domain/area.ts'
 import {formatTime} from '../domain/time.ts'
 import type {AreaDataset,LatLng,Spot,SunPosition} from '../domain/types.ts'
+import type {RouteSegment} from '../domain/route.ts'
 export interface CityHandle{zoom:(factor:number)=>void;locate:(p:LatLng)=>void;reset:()=>void;north:()=>void}
-interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void}
-interface Runtime{renderer:T.WebGLRenderer;scene:T.Scene;camera:T.PerspectiveCamera;controls:OrbitControls;sunLight:T.DirectionalLight;hemi:T.HemisphereLight;path:T.Group;orb:T.Mesh;ray:T.Line;markers:T.InstancedMesh|null;anchor:T.Vector3;invalidate:()=>void;flyTo:(p:T.Vector3)=>void;reset:()=>void}
+interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void;route?:RouteSegment[]|null}
+interface Runtime{renderer:T.WebGLRenderer;scene:T.Scene;camera:T.PerspectiveCamera;controls:OrbitControls;sunLight:T.DirectionalLight;hemi:T.HemisphereLight;path:T.Group;orb:T.Mesh;ray:T.Line;markers:T.InstancedMesh|null;route:T.Group|null;anchor:T.Vector3;invalidate:()=>void;flyTo:(p:T.Vector3,distance?:number)=>void;reset:()=>void}
 const DEFAULT_FOCUS=EXPLORER_FOCUS
 const RADIUS=145
 function makeLine(points:T.Vector3[],color:string,opacity=1){return new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color,transparent:opacity<1,opacity}))}
@@ -52,9 +53,9 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   const glow=new T.Mesh(new T.SphereGeometry(9.2,16,12),new T.MeshBasicMaterial({color:'#ffedbd',transparent:true,opacity:.16,depthWrite:false}));orb.add(glow)
   const ray=makeLine([anchor.clone(),anchor.clone().add(new T.Vector3(RADIUS,0,0))],'#edac4d');scene.add(ray)
   const origin=new T.Mesh(new T.CircleGeometry(3,20),new T.MeshBasicMaterial({color:'#6e9bba',side:T.DoubleSide}));origin.rotation.x=-Math.PI/2;origin.position.copy(anchor).add(new T.Vector3(0,.6,0));origin.visible=false;scene.add(origin)
-  let dirty=true,frame=0,destination:T.Vector3|null=null,lastBearing=-999
+  let dirty=true,frame=0,destination:T.Vector3|null=null,destinationDistance:number|null=null,lastBearing=-999
   const invalidate=()=>{dirty=true}
-  const r:Runtime={renderer,scene,camera,controls,sunLight:light,hemi,path:orbit,orb,ray,markers:null,anchor,invalidate,flyTo(p){destination=p.clone();dirty=true},reset(){destination=null;controls.reset();dirty=true}}
+  const r:Runtime={renderer,scene,camera,controls,sunLight:light,hemi,path:orbit,orb,ray,markers:null,route:null,anchor,invalidate,flyTo(p,distance){destination=p.clone();destinationDistance=distance??null;dirty=true},reset(){destination=null;destinationDistance=null;controls.reset();dirty=true}}
   runtime.current=r;controls.addEventListener('change',invalidate)
   const resize=()=>{const w=element.clientWidth,h=element.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;camera.clearViewOffset();if(w>900)camera.setViewOffset(w,h,-w*.105,0,w,h);camera.updateProjectionMatrix();dirty=true}
   const observer=new ResizeObserver(resize);observer.observe(element);resize()
@@ -67,7 +68,7 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   }
   const lost=(e:Event)=>{e.preventDefault();latest.current.onError('3D表示が中断されたため、2Dモデルに切り替えます。')}
   renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('webglcontextlost',lost)
-  function animate(){frame=requestAnimationFrame(animate);if(destination){const move=destination.clone().sub(controls.target).multiplyScalar(.12);controls.target.add(move);camera.position.add(move);dirty=true;if(move.length()<.06)destination=null}
+  function animate(){frame=requestAnimationFrame(animate);if(destination){const move=destination.clone().sub(controls.target).multiplyScalar(.12);controls.target.add(move);camera.position.add(move);if(destinationDistance){const offset=camera.position.clone().sub(controls.target),d=offset.length();offset.setLength(d+(destinationDistance-d)*.12);camera.position.copy(controls.target).add(offset)}dirty=true;if(move.length()<.06){destination=null;destinationDistance=null}}
    const changed=controls.update();if(!dirty&&!changed)return
    anchor.copy(controls.target);r.path.position.copy(anchor);origin.position.copy(anchor).add(new T.Vector3(0,.6,0));const sun=latest.current.sun,vector=solarVector(sun,1500),daylight=sun.altitude>0;light.position.copy(controls.target).add(new T.Vector3(vector.x,Math.max(15,vector.y),vector.z));light.target.position.copy(controls.target);light.intensity=daylight?2.7:0;light.castShadow=latest.current.showShadow&&sun.altitude>2;hemi.intensity=daylight?1.9:.75;scene.background=new T.Color(daylight?'#efe6e2':'#1f2736');if(scene.fog instanceof T.Fog)scene.fog.color.copy(scene.background)
    r.path.visible=latest.current.showPath;r.orb.visible=latest.current.showPath&&daylight;r.ray.visible=false;const position=solarVector(sun,RADIUS);orb.position.copy(anchor).add(new T.Vector3(position.x,position.y,position.z));ray.geometry.setFromPoints([anchor.clone(),anchor.clone().add(new T.Vector3(position.x,.8,position.z))]);renderer.render(scene,camera)
@@ -80,6 +81,19 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
  },[props.dataset])
  useEffect(()=>{const r=runtime.current;if(!r)return;const replacement=makeTrack(props.day,r.anchor);r.scene.remove(r.path);disposeObject(r.path);r.path=replacement;r.scene.add(replacement);r.invalidate()},[props.day,ready])
  useEffect(()=>{runtime.current?.invalidate()},[props.sun,props.showShadow,props.showPath,props.minutes])
+ const routeKey=useRef('')
+ // 徒歩ルート: 白いふちの上に、日陰の区間は濃い青、日なたは橙、夜は灰色で地面に描く
+ useEffect(()=>{const r=runtime.current;if(!r)return;if(r.route){r.scene.remove(r.route);disposeObject(r.route);r.route=null}const segments=props.route;if(!segments?.length){routeKey.current='';r.invalidate();return}
+  const group=new T.Group(),material=(color:string)=>new T.MeshBasicMaterial({color,transparent:true,opacity:.96,depthWrite:false,side:T.DoubleSide}),all=segments.flatMap(s=>s.points.map(p=>[p.lat,p.lng] as [number,number]))
+  const edge=new T.Mesh(strip(all,7.5,.85),material('#ffffff'));edge.renderOrder=3;group.add(edge)
+  for(const s of segments){const line=new T.Mesh(strip(s.points.map(p=>[p.lat,p.lng] as [number,number]),4.4,.9),material(s.state==='shade'?'#3d5f86':s.state==='sun'?'#f0952c':'#8a9099'));line.renderOrder=4;group.add(line)}
+  const first=segments[0].points[0],last=segments[segments.length-1].points.at(-1)!
+  for(const [p,color] of [[first,'#4f86c6'],[last,'#2f6b4f']] as const){const pin=new T.Mesh(new T.CylinderGeometry(4.5,4.5,2,20),new T.MeshBasicMaterial({color}));pin.position.copy(worldPoint(p,1.2));pin.renderOrder=5;group.add(pin)}
+  r.route=group;r.scene.add(group)
+  // 新しいルートのときだけ、全体が入るように視点を動かす（時刻を変えて色だけ変わるときは動かさない）
+  const key=`${first.lat},${first.lng}>${last.lat},${last.lng}`;if(routeKey.current!==key){routeKey.current=key;const box=new T.Box3();for(const s of segments)for(const p of s.points)box.expandByPoint(worldPoint(p));const size=box.getSize(new T.Vector3());r.flyTo(box.getCenter(new T.Vector3()),Math.min(2000,Math.max(380,Math.max(size.x,size.z)*1.25/Math.min(1,r.camera.aspect*1.4))))}
+  r.invalidate()
+ },[props.route,ready])
  const lastSelection=useRef(props.selected)
  useEffect(()=>{const r=runtime.current;if(!r)return;if(r.markers){r.scene.remove(r.markers);disposeObject(r.markers)}
   const markers=new T.InstancedMesh(new T.SphereGeometry(2.4,8,6),new T.MeshBasicMaterial({color:'#ffffff',depthTest:false}),props.spots.length),dummy=new T.Object3D();markers.renderOrder=3
