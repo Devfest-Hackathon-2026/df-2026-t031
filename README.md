@@ -13,7 +13,7 @@ DevFest GDGoC Japan Hackathon 2026 / チーム **epoku**（エントリー番号
 - **デモ対象エリア**: みなとみらい／横浜（「多分」付き。会場周辺を追加する案もあり）
 - **最終形**: モバイルアプリ。当日は **APK（Android）＋ Web アプリ（iPhone の人向け）** で見せる
 
-詳細: [docs/idea.md](docs/idea.md) ／ 技術: [docs/architecture.md](docs/architecture.md) ／ ピッチ: [docs/pitch.md](docs/pitch.md) ／ 出典: [docs/sources.md](docs/sources.md)
+**MVP: [docs/mvp.md](docs/mvp.md)** ／ 詳細: [docs/idea.md](docs/idea.md) ／ 技術: [docs/architecture.md](docs/architecture.md) ／ ピッチ: [docs/pitch.md](docs/pitch.md) ／ 出典: [docs/sources.md](docs/sources.md)
 
 ## スケジュール
 
