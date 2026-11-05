@@ -1,0 +1,27 @@
+# env
+.env
+.env.*
+!.env.example
+
+# node
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# firebase / gcloud
+.firebase/
+*-debug.log
+service-account*.json
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
