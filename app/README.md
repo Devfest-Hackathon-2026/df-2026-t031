@@ -76,6 +76,18 @@ $env:ANDROID_HOME = 'C:\Users\kouta\AppData\Local\Android\Sdk'
 npm run apk
 ```
 
+macOS（Apple シリコン）の場合:
+
+```bash
+brew install --cask temurin@21 android-studio
+# Android Studio を一度起動し、SDK Manager で「Android 16 (API 36)」と「Android SDK Build-Tools 36」を入れる
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export ANDROID_HOME=$HOME/Library/Android/sdk
+npm run apk
+```
+
+GitHub Actions でも作れます。Pull Request や main への push、または Actions タブの「epoku checks」→「Run workflow」で実行すると、テスト・ビルドのあとにデバッグ APK を作り、実行結果の Artifacts に `epoku-debug-apk` として 14 日間置きます（zip を展開すると `app-debug.apk`）。
+
 出力: `android/app/build/outputs/apk/debug/app-debug.apk`。デバッグ署名の開発用ビルドです。ストア公開用署名は含みません。Android実機での起動・位置情報権限・ファイル保存の確認は別途必要です。
 
 ## 検証

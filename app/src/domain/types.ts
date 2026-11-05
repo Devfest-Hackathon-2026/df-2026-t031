@@ -192,6 +192,16 @@ export interface SeatReport {
   ownerUid?: string
 }
 
+/** 地点の通報（SHADE SPOT の「この投稿を通報」）。3 件集まった地点は一覧と地図に出さない */
+export type SpotFlagReason = 'missing' | 'moved' | 'wrong-items' | 'spam'
+export interface SpotFlag {
+  id: string
+  spotId: string
+  reason: SpotFlagReason
+  flaggedAt: string
+}
+export const FLAG_HIDE_COUNT = 3
+
 export interface SeatFeatureSnapshot {
   hour: number
   dayType: DayType

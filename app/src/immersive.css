@@ -22,3 +22,31 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .solar-lengths{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.solar-lengths>div{background:#f3f4f50d;border:1px solid #ffffff05;border-radius:15px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}.solar-lengths small{font-size:10px;color:#b3b6bb}.solar-lengths strong{font-size:14px;font-weight:500;color:#f4f5f6}
 /* SHADE SPOT 風の日陰 3 段階表示 */
 .coverage-tag{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:5px 9px;font-size:10px;font-weight:600}.coverage-high{background:#2f3b4d;color:#e9eef6}.coverage-partial{background:#d9dde4;color:#38414f}.coverage-sun{background:#fbe7a6;color:#6b4e06}
+/* Sunlitt 風: 画面の端の時刻・日付ピル（ドラッグで変更） */
+.edge-pill{position:absolute;z-index:24;top:52%;transform:translateY(-50%);background:#fffffff2;color:#1d1f22;border-radius:12px;padding:9px 14px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 4px 16px #1d1f2224;touch-action:none;cursor:ns-resize;user-select:none;-webkit-user-select:none}
+.edge-time{right:-4px;padding-right:18px}.edge-day{left:-4px;padding-left:18px;font-size:13px}
+.solar-expanded .edge-day{left:352px;border-radius:12px;padding-left:14px}
+.edge-pill::before,.edge-pill::after{content:'';position:absolute;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#ffffffc0;box-shadow:0 1px 3px #0003}
+.edge-pill::before{top:-14px}.edge-pill::after{bottom:-14px}
+.edge-now{position:absolute;z-index:24;right:30px;top:calc(52% + 52px);width:34px;height:34px;border-radius:50%;background:#2d3033e0;color:#f3f4f5;font-size:13px;font-weight:600;border:1px solid #ffffff1a;backdrop-filter:blur(18px)}
+@media(max-width:760px){.edge-pill,.edge-now{display:none}}
+@media(min-width:1600px){.solar-expanded .edge-day{left:384px}}
+@media(max-width:1100px) and (min-width:761px){.solar-expanded .edge-day{left:312px}}
+/* 場所のピル（現在地・場所名・…メニュー） */
+.scene-place{padding:7px 9px;gap:6px;min-width:300px;justify-content:space-between}
+.scene-place>span{align-items:center;text-align:center;flex:1}
+.scene-place strong{font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.scene-place small{font-size:9px;letter-spacing:.4px}
+.scene-place button.place-locate,.scene-place button.place-more{margin:0;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#e4e6e8}
+.scene-place button.place-locate:hover,.scene-place button.place-more:hover{background:#ffffff14}
+.place-menu{position:absolute;bottom:calc(100% + 8px);right:0;display:flex;flex-direction:column;min-width:190px;border-radius:16px;padding:6px;z-index:30}
+.place-menu button{margin:0;text-align:left;padding:10px 12px;border-radius:10px;font-size:12px;color:#eceef0}
+.place-menu button:hover{background:#ffffff14}
+/* スポット詳細: 捨てられる物・通報 */
+.spot-note{display:flex;gap:8px;font-size:12px;line-height:1.6;margin:10px 0 0;color:inherit}.spot-note b{flex-shrink:0;font-weight:600;opacity:.75}
+.flag-box{margin:12px 0 10px;font-size:12px}.flag-box summary{display:flex;align-items:center;gap:6px;cursor:pointer;opacity:.75}
+.flag-buttons{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}.flag-buttons button{border:1px solid currentColor;border-radius:20px;padding:6px 10px;font-size:11px;opacity:.8}.flag-buttons button[aria-pressed=true]{background:#d9534f;border-color:#d9534f;color:#fff;opacity:1}
+.flag-box small{display:block;opacity:.6;font-size:10px}
+.trash-fields{border:1px solid #0000001a;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}.trash-fields legend{font-size:12px;padding:0 4px}
+.item-checks{display:flex;flex-wrap:wrap;gap:4px 12px}.usable-row{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:12px}
+.usable-row .check-row{white-space:nowrap}.usable-row input[type=radio]{width:16px;height:16px;min-height:0;padding:0;margin:0 4px 0 0;flex:none;accent-color:#6b8f4e}

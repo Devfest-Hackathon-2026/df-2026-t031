@@ -150,11 +150,11 @@ export class ShadeEngine {
    */
   coverageAtXY(p: XY, sun: SunPosition, roof = false, spread = 1.5): ShadeCoverage {
     const center = this.stateAtXY(p, sun, roof)
-    if (center === 'night' || center === 'roof') return { level: center, ratio: center === 'roof' ? 1 : 0 }
+    if (center === 'night' || center === 'roof') return { level: center, ratio: center === 'roof' ? 1 : 0, state: center }
     const pts = [p, { x: p.x + spread, y: p.y }, { x: p.x - spread, y: p.y }, { x: p.x, y: p.y + spread }, { x: p.x, y: p.y - spread }]
     const shaded = pts.filter((q, i) => isShaded(i === 0 ? center : this.stateAtXY(q, sun, false))).length
     const ratio = shaded / pts.length
-    return { level: ratio >= 0.8 ? 'high' : ratio >= 0.2 ? 'partial' : 'sun', ratio }
+    return { level: ratio >= 0.8 ? 'high' : ratio >= 0.2 ? 'partial' : 'sun', ratio, state: center }
   }
 
   stateAt(p: LatLng, time: Date, roof = false): ShadeState {
@@ -265,6 +265,8 @@ export interface ShadeCoverage {
   level: 'high' | 'partial' | 'sun' | 'night' | 'roof'
   /** 調べた点のうち日陰だった割合（0〜1） */
   ratio: number
+  /** 中心の点の状態（一覧の「日陰／日なた」と同じもの） */
+  state: ShadeState
 }
 
 export const COVERAGE_LABEL: Record<ShadeCoverage['level'], string> = {
