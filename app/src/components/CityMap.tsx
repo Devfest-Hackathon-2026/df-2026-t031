@@ -1,4 +1,5 @@
 import {forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react'
+import {Armchair} from 'lucide-react'
 import * as T from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {createCity,createContext,disposeObject,worldPoint,strip,type CityContext} from './cityGeometry.ts'
@@ -12,7 +13,9 @@ import type {SeatLevel} from '../domain/seat.ts'
 /** 空席確率による色: 緑＝座れそう・黄＝五分五分・赤＝混みそう */
 export const LEVEL_COLOR:Record<SeatLevel,string>={high:'#4f9d69',mid:'#dcae35',low:'#d9604c'}
 export interface CityHandle{zoom:(factor:number)=>void;locate:(p:LatLng)=>void;reset:()=>void;north:()=>void}
-interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void;route?:RouteSegment[]|null;levels?:ReadonlyMap<string,SeatLevel>}
+interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showShadow:boolean;showPath:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(message:string)=>void;onBearing?:(degrees:number)=>void;route?:RouteSegment[]|null;levels?:ReadonlyMap<string,SeatLevel>;bubbles?:Bubble[];onBubble?:(id:string)=>void}
+/** 建物の上に浮かぶ吹き出しのピン。pick＝一番のおすすめ（「!」）、cand＝ほかの候補（ベンチと順位） */
+export interface Bubble{id:string;position:LatLng;kind:'pick'|'cand';rank:number;level?:SeatLevel;active:boolean;label:string}
 interface Runtime{renderer:T.WebGLRenderer;scene:T.Scene;camera:T.PerspectiveCamera;controls:OrbitControls;sunLight:T.DirectionalLight;hemi:T.HemisphereLight;path:T.Group;orb:T.Mesh;ray:T.Line;markers:T.InstancedMesh|null;route:T.Group|null;anchor:T.Vector3;invalidate:()=>void;flyTo:(p:T.Vector3,distance?:number)=>void;reset:()=>void}
 const DEFAULT_FOCUS=EXPLORER_FOCUS
 const RADIUS=145
@@ -39,6 +42,7 @@ function makeTrack(day:string,anchor:T.Vector3){
  return group
 }
 export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
+ const bubbleEls=useRef(new Map<string,HTMLDivElement>())
  const container=useRef<HTMLDivElement>(null),runtime=useRef<Runtime|null>(null),latest=useRef(props),label=useRef<HTMLDivElement>(null),selectedLabel=useRef<HTMLDivElement>(null),[ready,setReady]=useState(false)
  latest.current=props
  useImperativeHandle(ref,()=>({zoom(factor){const r=runtime.current;if(!r)return;r.camera.position.sub(r.controls.target).multiplyScalar(factor).add(r.controls.target);r.controls.update();r.invalidate()},locate(p){runtime.current?.flyTo(worldPoint(p))},reset(){runtime.current?.reset()},north(){const r=runtime.current;if(!r)return;const distance=r.camera.position.distanceTo(r.controls.target);r.camera.position.copy(r.controls.target).add(new T.Vector3(0,distance*.65,distance*.8));r.controls.update();r.invalidate()}}),[])
@@ -78,13 +82,17 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
    r.path.visible=latest.current.showPath;r.orb.visible=latest.current.showPath&&daylight;r.ray.visible=false;const position=solarVector(sun,RADIUS);orb.position.copy(anchor).add(new T.Vector3(position.x,position.y,position.z));ray.geometry.setFromPoints([anchor.clone(),anchor.clone().add(new T.Vector3(position.x,.8,position.z))]);renderer.render(scene,camera)
    const project=(position:T.Vector3,el:HTMLDivElement|null)=>{if(!el)return;const v=position.clone().project(camera);el.style.display=v.z>1||v.z< -1?'none':'';el.style.transform=`translate3d(${(v.x*.5+.5)*element.clientWidth}px,${(-v.y*.5+.5)*element.clientHeight}px,0)`}
    project(orb.position,label.current);if(label.current)label.current.style.visibility=r.orb.visible?'visible':'hidden'
-   const spot=latest.current.spots.find(s=>s.id===latest.current.selected);if(spot)project(worldPoint(spot.position,10),selectedLabel.current);else if(selectedLabel.current)selectedLabel.current.style.display='none'
+   const bubbles=latest.current.bubbles??[],spot=latest.current.spots.find(s=>s.id===latest.current.selected);if(spot&&!bubbles.some(b=>b.id===spot.id))project(worldPoint(spot.position,10),selectedLabel.current);else if(selectedLabel.current)selectedLabel.current.style.display='none'
+   // 吹き出しは順位の高い順に置き、上位と重なる下位の吹き出しは隠す（「別の候補」からは選べる）
+   const placed:[number,number][]=[]
+   for(const b of bubbles){const el=bubbleEls.current.get(b.id);if(!el)continue;const v=worldPoint(b.position,b.kind==='pick'?9:6).project(camera),x=(v.x*.5+.5)*element.clientWidth,y=(-v.y*.5+.5)*element.clientHeight,off=v.z>1||v.z< -1
+    el.style.transform=`translate3d(${x}px,${y}px,0)`;const hidden=off||placed.some(([px,py])=>Math.hypot(px-x,py-y)<46);el.style.display=hidden?'none':'';el.style.zIndex=String(10-b.rank);if(!hidden)placed.push([x,y])}
    const direction=camera.position.clone().sub(controls.target),bearing=Math.round(Math.atan2(direction.x,direction.z)*180/Math.PI);if(bearing!==lastBearing){latest.current.onBearing?.(bearing);lastBearing=bearing}dirty=false
   }animate();setReady(true)
   return()=>{contextController.abort();cancelAnimationFrame(frame);observer.disconnect();controls.removeEventListener('change',invalidate);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);disposeObject(scene);light.shadow.dispose();renderer.dispose();renderer.domElement.remove();runtime.current=null}
  },[props.dataset])
  useEffect(()=>{const r=runtime.current;if(!r)return;const replacement=makeTrack(props.day,r.anchor);r.scene.remove(r.path);disposeObject(r.path);r.path=replacement;r.scene.add(replacement);r.invalidate()},[props.day,ready])
- useEffect(()=>{runtime.current?.invalidate()},[props.sun,props.showShadow,props.showPath,props.minutes])
+ useEffect(()=>{runtime.current?.invalidate()},[props.sun,props.showShadow,props.showPath,props.minutes,props.bubbles])
  const routeKey=useRef('')
  // 徒歩ルート: 白いふちの上に、日陰の区間は濃い青、日なたは橙、夜は灰色で地面に描く
  useEffect(()=>{const r=runtime.current;if(!r)return;if(r.route){r.scene.remove(r.route);disposeObject(r.route);r.route=null}const segments=props.route;if(!segments?.length){routeKey.current='';r.invalidate();return}
@@ -109,6 +117,7 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   {!ready?<div className="scene-loading"><span/>3Dの街並みを準備しています</div>:null}
   <div ref={label} className="scene-sun-label"><span>{formatTime(props.minutes)}</span><small>太陽の位置</small></div>
   <div ref={selectedLabel} className="scene-selected-label"><span>{props.spots.find(s=>s.id===props.selected)?.name||'休憩スポット'}</span></div>
+  <div className="scene-bubbles">{props.bubbles?.map(b=><div key={b.id} className="bubble-anchor" ref={el=>{if(el)bubbleEls.current.set(b.id,el);else bubbleEls.current.delete(b.id)}}><button className={'spot-bubble bubble-'+b.kind+(b.active?' is-active':'')+(b.level?' level-'+b.level:'')} aria-label={b.kind==='pick'?`おすすめ: ${b.label}`:`候補${b.rank}: ${b.label}`} aria-pressed={b.active} onClick={()=>props.onBubble?.(b.id)}>{b.kind==='pick'?<span className="bubble-bang">!</span>:<><Armchair size={17} strokeWidth={2.2}/><i className="bubble-rank">{b.rank}</i></>}</button></div>)}</div>
   <div className="scene-keyboard-spots">{props.spots.map(s=><button key={s.id} onClick={()=>props.onSelect(s.id)}>{s.name||'休憩スポット'}を選択</button>)}</div>
  </div>
 })
