@@ -208,3 +208,7 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .best-time>strong{font-size:16px}
 }
 .immersive-app.simple .attribution{display:block!important}
+/* 右端の時刻ピル（上下にドラッグで時刻を変え、影の動きを見る）は簡略表示でも残す。スマホでも表示 */
+.simple .edge-day,.simple .edge-now{display:none!important}
+.simple .edge-time{top:44%}
+@media(max-width:760px){.simple .edge-time{display:block;top:36%;font-size:14px;padding:8px 16px 8px 12px}}
