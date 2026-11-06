@@ -180,6 +180,15 @@ export interface ShadeTimeline {
 /** sat=座れた / full=満席だった / missing=見当たらなかった */
 export type SeatReportValue = 'sat' | 'full' | 'missing'
 
+/** 現地での日陰の答え合わせ。predicted は記録した時点のモデルの判定 */
+export interface ShadeCheck {
+  id: string
+  spotId: string
+  observed: 'shade' | 'sun'
+  predicted: 'shade' | 'sun'
+  checkedAt: string
+}
+
 export interface SeatReport {
   id: string
   spotId: string

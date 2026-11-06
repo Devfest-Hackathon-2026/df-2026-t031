@@ -123,3 +123,48 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .immersive-app .result-prob.level-text-high{color:#8fcf9f}.immersive-app .result-prob.level-text-mid{color:#ecc867}.immersive-app .result-prob.level-text-low{color:#ec8f7c}
 @media(max-width:1100px){.seat-legend{display:none}}
 @media(min-width:1600px){.seat-legend{left:392px}}
+/* 着いたとき日陰で座れるベンチ（地図上のおすすめカード） */
+.best-pick{position:absolute;z-index:24;top:99px;left:368px;right:420px;margin:0 auto;max-width:440px;padding:13px 14px 12px;border-radius:20px;color:#eef1ea;display:flex;flex-direction:column;gap:8px}
+.best-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.best-eyebrow{font-size:10px;letter-spacing:.6px;color:#e7c27c;font-weight:600}
+.best-next{display:flex;align-items:center;gap:2px;font-size:10px;color:#b9bdc2;padding:3px 4px 3px 8px;border-radius:10px}
+.best-next:hover{background:#ffffff12}
+.best-name{display:flex;align-items:baseline;justify-content:space-between;gap:10px;text-align:left;width:100%}
+.best-name strong{font-size:18px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.best-name span{font-size:12px;color:#c9cdd1;white-space:nowrap}
+.best-chips{display:flex;flex-wrap:wrap;gap:5px}
+.best-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:5px 8px;border-radius:12px;background:#ffffff10;color:#dfe3e6}
+.chip-shade{background:#3d5f8655;color:#d7e5f5}
+.chip-sun{background:#f0952c33;color:#f7d2a6}
+.chip-night{background:#ffffff10;color:#b9bdc2}
+.chip-level i{width:8px;height:8px;border-radius:50%;background:var(--level)}
+.chip-walk{background:#ffffff14}
+.best-reason{margin:0;font-size:11px;color:#c3c7cb;line-height:1.5}
+.best-actions{display:flex;gap:6px}
+.best-actions button{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;padding:9px 12px;border-radius:12px;color:#d6d9dc;background:#ffffff0d;border:1px solid #ffffff14}
+.best-actions button.primary{flex:1;background:#d7e4ba;color:#2f3133;border:0;font-weight:600}
+.best-actions button[aria-pressed=true]{background:#5f86b433;border-color:#8fb0d566;color:#e2ecf7}
+.best-actions button:not(.primary):first-child{flex:1}
+@media(max-width:1100px) and (min-width:761px){.best-pick{left:320px;right:345px}}
+@media(max-width:760px){.best-pick{top:181px;left:12px;right:65px;max-width:none;padding:11px 12px 10px;border-radius:18px;gap:7px}.best-name strong{font-size:16px}.panel-spots .best-pick{display:none}}
+/* 日の出・南中・日の入りの一行（時間帯の一覧の代わり） */
+.solar-sunline{display:flex;justify-content:space-between;gap:6px;background:#f3f6e80d;border:1px solid #ffffff07;border-radius:15px;padding:13px 14px;font-size:12px;color:#e9ecef}
+.solar-sunline span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.solar-sunline svg{color:#e8c47d}
+.solar-hint{font-size:10px;color:#a3a7ad;line-height:1.7;margin:10px 4px 0}
+/* 日陰の答え合わせ・夏14時 */
+.check-block{display:flex;flex-direction:column;gap:7px;margin-top:12px;padding-top:11px;border-top:1px solid #ffffff11}
+.check-block>span{font-size:10px;color:#c8ccd0}
+.check-buttons{display:flex;gap:6px}
+.check-buttons button{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;padding:9px 6px;border-radius:11px;color:#d8dde2;background:#ffffff0b;border:1px solid #ffffff14}
+.check-buttons button:first-child svg{color:#9cc0e6}.check-buttons button:last-child svg{color:#f0b46b}
+.check-block small{font-size:9px;color:#8f9399;line-height:1.6}
+.immersive-app .timeline-switches>button.summer-button{opacity:1;color:#f3cf8f;font-size:9px;border:1px solid #f3cf8f44;padding:6px 10px;border-radius:13px;background:#f0952c14}
+.immersive-app .timeline-switches>button.summer-button.on{background:#f0952c3a;color:#ffe3b5}
+@media(max-width:760px){.immersive-app .timeline-switches>button.summer-button{font-size:8px;padding:5px 8px}.solar-sunline{font-size:11px;padding:11px}}
+.immersive-app .timeline-switches>button.summer-button{white-space:nowrap}
+@media(max-width:760px){
+.immersive-app .timeline-switches>button.shadow-toggle,.immersive-app .timeline-switches>button.path-toggle{display:none}
+.best-name{flex-direction:column;align-items:flex-start;gap:3px}
+.best-name strong{white-space:normal;line-height:1.3}
+}
