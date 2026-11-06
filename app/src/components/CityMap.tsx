@@ -98,7 +98,8 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   const key=`${first.lat},${first.lng}>${last.lat},${last.lng}`;if(routeKey.current!==key){routeKey.current=key;const box=new T.Box3();for(const s of segments)for(const p of s.points)box.expandByPoint(worldPoint(p));const size=box.getSize(new T.Vector3());r.flyTo(box.getCenter(new T.Vector3()),Math.min(2000,Math.max(380,Math.max(size.x,size.z)*1.25/Math.min(1,r.camera.aspect*1.4))))}
   r.invalidate()
  },[props.route,ready])
- const lastSelection=useRef(props.selected)
+ // 最初に3Dの準備ができたときも、選んでいる地点（おすすめのベンチ）へ視点を動かす
+ const lastSelection=useRef('')
  useEffect(()=>{const r=runtime.current;if(!r)return;if(r.markers){r.scene.remove(r.markers);disposeObject(r.markers)}
   const markers=new T.InstancedMesh(new T.SphereGeometry(2.4,8,6),new T.MeshBasicMaterial({color:'#ffffff',depthTest:false}),props.spots.length),dummy=new T.Object3D();markers.renderOrder=3
   props.spots.forEach((s,i)=>{const active=s.id===props.selected;dummy.position.copy(worldPoint(s.position,active?5:3));dummy.scale.setScalar(active?2:1);dummy.updateMatrix();markers.setMatrixAt(i,dummy.matrix);const level=props.levels?.get(s.id);markers.setColorAt(i,new T.Color(level?LEVEL_COLOR[level]:active?'#f9c874':'#7194a2'))});markers.computeBoundingSphere();r.markers=markers;r.scene.add(markers)

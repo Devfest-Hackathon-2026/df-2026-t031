@@ -168,3 +168,43 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .best-name{flex-direction:column;align-items:flex-start;gap:3px}
 .best-name strong{white-space:normal;line-height:1.3}
 }
+/* ===== 簡略表示: 上はロゴとメニューだけ、下におすすめカード1枚。ほかの操作はメニューの中 ===== */
+.simple .search-area,.simple .filter-row,.simple .view-nav,.simple .map-tools,.simple .north,.simple .map-mode,.simple .add-spot,.simple .seat-legend,.simple .scene-place,.simple .time-panel,.simple .map-source,.simple .header-place{display:none!important}
+.simple .solar-panel{display:none}
+.immersive-app.simple.show-sun.panel-sun .solar-panel{display:flex;flex-direction:column}
+.simple .site-header{justify-content:space-between}
+.simple .header-actions{position:relative;padding:3px}
+.simple .menu-button{width:40px;height:40px}
+.main-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:240px;display:flex;flex-direction:column;padding:6px;border-radius:16px;z-index:40}
+.main-menu button{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 12px;border-radius:10px;font-size:13px;color:#eceef0}
+.main-menu button svg{color:#c9cdd1;flex-shrink:0}
+.main-menu button:hover{background:#ffffff14}
+.main-menu hr{border:0;border-top:1px solid #ffffff14;margin:4px 6px}
+/* カードは画面の下 */
+.simple .best-pick{top:auto;bottom:24px;left:24px;right:auto;width:400px;max-width:calc(100vw - 48px);margin:0;padding:14px 16px 14px;gap:9px}
+.simple.panel-spots .best-pick{left:384px}
+.best-time{display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #ffffff12}
+.best-time>span{font-size:10px;color:#a9adb2;white-space:nowrap}
+.best-time>strong{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;min-width:44px}
+.best-slider{flex:1;min-width:0;height:4px;-webkit-appearance:none;appearance:none;border-radius:4px;background:linear-gradient(to right,#d5bc82 var(--time-progress),#bec0c430 var(--time-progress));outline-offset:6px}
+.best-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff5d7;border:2px solid #f6e9bd;box-shadow:0 1px 4px #0004}
+.best-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff5d7;border:2px solid #f6e9bd}
+.best-preset{font-size:11px;padding:6px 10px;border-radius:11px;color:#e3e6e8;background:#ffffff10;border:1px solid #ffffff14;white-space:nowrap}
+.best-preset.summer{color:#f3cf8f;border-color:#f3cf8f44;background:#f0952c14}
+.best-preset.summer.on{background:#f0952c3a;color:#ffe3b5}
+.results-close{position:absolute;top:14px;right:12px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#d0d3d6;background:#ffffff0d;z-index:2}
+.simple .results-panel{top:88px}
+.simple .results-header{padding-right:40px}
+.simple .attribution{bottom:auto;top:84px;right:16px}
+@media(max-width:760px){
+.simple .best-pick{left:10px;right:10px;width:auto;max-width:none;bottom:max(10px,env(safe-area-inset-bottom));padding:12px 13px;border-radius:20px}
+.simple.panel-spots .best-pick{display:none}
+.simple .results-panel{top:68px;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom))}
+.simple .attribution{top:64px;right:10px}
+.simple .add-hint{top:68px;left:10px;right:10px}
+.immersive-app.simple.show-sun.panel-sun .solar-panel{display:flex}
+.simple.show-sun .best-pick{display:none}
+.main-menu{position:fixed;top:64px;right:10px;left:auto}
+.best-time>strong{font-size:16px}
+}
+.immersive-app.simple .attribution{display:block!important}
