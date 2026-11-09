@@ -271,7 +271,7 @@ export function parseOsm(data: SlimOsm, opts: ParseOptions): AreaDataset {
 }
 
 export function heightStats(buildings: Building[]): Record<Building['heightSource'], number> {
-  const s = { measured: 0, levels: 0, assumed: 0 }
+  const s = { measured: 0, levels: 0, assumed: 0, plateau: 0 }
   for (const b of buildings) s[b.heightSource]++
   return s
 }
