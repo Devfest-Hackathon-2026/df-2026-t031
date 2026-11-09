@@ -1,11 +1,11 @@
 import {useEffect,useRef} from 'react'
-import {Armchair,Heart,Sun,LocateFixed,Plus,SlidersHorizontal,Info,X,HelpCircle} from 'lucide-react'
+import {HeartPulse,Armchair,Heart,Sun,LocateFixed,Plus,SlidersHorizontal,Info,X,HelpCircle} from 'lucide-react'
 
 /**
  * ハンバーガーメニュー（右から出る引き出し）。地図の表示はラジオボタン、表示の切り替えはチェック、
  * 歩ける時間はプルダウンで選ぶ。Esc か背景のタップで閉じる。
  */
-interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void;followTime:boolean;onFollowTime:(v:boolean)=>void;lightQuality?:boolean;onLightQuality?:(v:boolean)=>void;showLabels?:boolean;onShowLabels?:(v:boolean)=>void
+interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void;followTime:boolean;onFollowTime:(v:boolean)=>void;lightQuality?:boolean;onLightQuality?:(v:boolean)=>void;showLabels?:boolean;onShowLabels?:(v:boolean)=>void;onRestSheet?:()=>void
  onList:()=>void;onFavorites:()=>void;onSun:()=>void;onLocate:()=>void;onAdd:()=>void;onHelp:()=>void;onSettings:()=>void;onAbout:()=>void}
 export const WALK_OPTIONS=[10,15,20,30]
 export default function MenuDrawer(p:Props){
@@ -19,6 +19,7 @@ export default function MenuDrawer(p:Props){
    <section><h3>見る</h3>
     <button className="drawer-item" onClick={go(p.onList)}><Armchair size={18}/>休憩スポットの一覧</button>
     <button className="drawer-item" onClick={go(p.onFavorites)}><Heart size={18}/>保存した場所<span className="drawer-count">{p.favorites}</span></button>
+    {p.onRestSheet?<button className="drawer-item" onClick={go(p.onRestSheet)}><HeartPulse size={18}/>休憩する（Google Health）</button>:null}
     <button className="drawer-item" onClick={go(p.onSun)}><Sun size={18}/>太陽と日の出・日の入り</button>
    </section>
    <section><h3>地図</h3>
