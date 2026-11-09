@@ -441,3 +441,13 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 @media(prefers-reduced-transparency:reduce){.immersive-app{--lg-tint-top:rgba(50,53,58,.94);--lg-tint-bottom:rgba(30,32,36,.96)}.immersive-app .best-slide{background:rgba(255,255,255,.08)}}
 .immersive-app .care-select{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left}
 .immersive-app .care-select>span{font-size:12px;color:#55585d;text-align:left}
+/* 透け感を控えめに（縁取りと映り込みはそのまま、色を濃くする） */
+.immersive-app{--lg-tint-top:rgba(62,66,72,.56);--lg-tint-bottom:rgba(24,26,30,.74);--lg-blur:blur(32px) saturate(1.8) brightness(.9)}
+.immersive-app .drawer.glass-panel{--lg-tint-top:rgba(58,62,68,.66);--lg-tint-bottom:rgba(22,24,28,.82)}
+.immersive-app .rest-nudge.nudge-warn{--lg-tint-top:rgba(140,80,42,.6);--lg-tint-bottom:rgba(66,36,20,.78)}
+.immersive-app .best-slide{background:linear-gradient(165deg,rgba(255,255,255,.1),rgba(255,255,255,.04)),rgba(30,32,36,.28)}
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button{background:linear-gradient(170deg,rgba(255,255,255,.17),rgba(255,255,255,.05)),rgba(36,38,42,.35)}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary,.rest-nudge>div button:first-child{background:linear-gradient(170deg,rgba(234,245,208,.95),rgba(184,208,136,.86))}
+.repick-row button{background:linear-gradient(170deg,rgba(255,234,165,.96),rgba(242,186,62,.88))}
+.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.9),rgba(242,244,236,.84))}
+.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.97),rgba(242,244,238,.9))}
