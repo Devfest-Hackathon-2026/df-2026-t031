@@ -10,7 +10,7 @@ const SHADES=['sun','building','tree','roof','night'],CONDITIONS=['clear','partl
 export function validFeatures(f:any):SeatFeatureSnapshot|undefined{if(!f||typeof f!=='object'||!num(f.hour,0,24)||!['weekday','weekend','holiday'].includes(f.dayType)||!numOrNull(f.temperatureC,-50,60)||!numOrNull(f.wbgt,-20,50)||!(f.condition===null||CONDITIONS.includes(f.condition))||!SHADES.includes(f.shade)||typeof f.roof!=='boolean'||!numOrNull(f.aiProbability,0,1))return undefined
  return {hour:f.hour,dayType:f.dayType,temperatureC:f.temperatureC,wbgt:f.wbgt,condition:f.condition,shade:f.shade,roof:f.roof,aiProbability:f.aiProbability}}
 export function validateSaved(v:unknown):SavedData{
- if(!v||typeof v!=='object')throw Error('epokuのバックアップではありません。')
+ if(!v||typeof v!=='object')throw Error('Rest Care（epoku）のバックアップではありません。')
  const x=v as SavedData
  if(x.version!==1||!Array.isArray(x.favorites)||!Array.isArray(x.reports)||!Array.isArray(x.spots)||x.spots.length>1000||x.reports.length>10000||x.favorites.length>2000)throw Error('バックアップの形式・件数を確認してください。')
  if(x.favorites.some(id=>typeof id!=='string'||id.length>150))throw Error('保存先の形式が不正です。')
