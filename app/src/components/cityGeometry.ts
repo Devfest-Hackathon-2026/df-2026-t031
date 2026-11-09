@@ -15,8 +15,9 @@ export function createCity(dataset:AreaDataset,lightQuality=false){
  const ground=new T.Mesh(new T.PlaneGeometry(7000,7000),new T.MeshStandardMaterial({color:'#eeedea',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.3;ground.receiveShadow=true;root.add(ground)
  const distance=(p:LatLng)=>((p.lat-EXPLORER_FOCUS.lat)*1.23)**2+(p.lng-EXPLORER_FOCUS.lng)**2
  const fallback=new T.Group();fallback.name='plateau-fallback'
- const fallbackGeometry=dataset.buildings.filter(b=>b.heightSource==='plateau'&&b.footprint.length>=3).map(b=>{const g=new T.ExtrudeGeometry(shapeFrom(b.footprint),{depth:b.height,bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);g.deleteAttribute('uv');return g})
- addMerged(fallback,fallbackGeometry,'#d9d5ca',true);root.add(fallback)
+ // PLATEAU の .glb を読めないときの代わり（外形から箱を作る）。高層ビルはガラス色にそろえる
+ const fallbackGeometry=dataset.buildings.filter(b=>b.heightSource==='plateau'&&b.footprint.length>=3).map(b=>{const g=new T.ExtrudeGeometry(shapeFrom(b.footprint),{depth:b.height,bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);g.deleteAttribute('uv');return {g,tall:b.height>=90}})
+ addMerged(fallback,fallbackGeometry.filter(x=>!x.tall).map(x=>x.g),'#d9d5ca',true);addMerged(fallback,fallbackGeometry.filter(x=>x.tall).map(x=>x.g),'#a3b7c6',true,{roughness:.3,metalness:.28});root.add(fallback)
  // 見てすぐ分かるように素材を分ける: 赤レンガ倉庫はレンガ色、日本丸は白、90m 以上の高層ビルはガラス。観覧車は箱ではなく形を作る
  const special={glass:[] as T.BufferGeometry[],brick:[] as T.BufferGeometry[],white:[] as T.BufferGeometry[]}
  const ordered=dataset.buildings.filter(b=>b.heightSource!=='plateau').sort((a,b)=>distance(a.footprint[0]??AREA_CENTER)-distance(b.footprint[0]??AREA_CENTER))
