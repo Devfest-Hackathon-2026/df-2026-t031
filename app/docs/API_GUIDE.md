@@ -28,6 +28,24 @@ Node APIはループバックだけで待ち受け、Host/Originを制限し、�
 
 公式: https://aistudio.google.com/api-reference/generate-content
 
+## Googleログイン・Google Health（休憩判断・任意）
+
+休憩シート（ヘッダーの「休憩する」）は手入力とデモ値だけで動きます。Google Health の値を使うときだけ設定します。
+
+1. Google Cloud で Google Health API を有効にし、OAuth 同意画面（外部・テスト）を作る。開発中はテストユーザーに使う Google アカウントを追加する。
+2. 認証情報で「ウェブアプリケーション」の OAuth クライアントを作り、承認済みリダイレクト URI に `http://127.0.0.1:5188/api/auth/google/callback` を登録する（別ポート・別ホストならそれに合わせる）。
+3. `app/.env` に `GOOGLE_OAUTH_CLIENT_ID` と `GOOGLE_OAUTH_CLIENT_SECRET` を置き、`npm run dev:all` を起動する。リダイレクト URI を固定したいときは `GOOGLE_OAUTH_REDIRECT_URI` を使う。
+
+- 読む範囲は利用者が休憩シートで選んだ項目だけです：`googlehealth.activity_and_fitness.readonly`（歩数・活動時間）、`googlehealth.sleep.readonly`（睡眠）、`googlehealth.health_metrics_and_measurements.readonly`（心拍）。加えて `openid profile`。
+- 認可コードは PKCE と state で受け、トークンはサーバーのメモリだけに置きます（`epoku_sid` の HttpOnly Cookie、最長 8 時間、再起動で消える）。ブラウザーと端末には渡しません。健康データの値も保存しません。
+- 画面へ返すのは当日の集計値（歩数・活動分・昨夜の睡眠時間）と、心拍の区分（平常／やや高め／高め）だけです。心拍の時系列や位置は返しません。
+- Gemini のひと言に健康データを使うのは、利用者が同意したときだけです。サーバー側でも許可リスト（`sanitizeRestContext`）で知らない項目と同意なしの健康データを捨て、診断・熱中症・病院・電話番号の表現は固定文に差し替えます。
+- コールバックは `/?health=connected` などへ戻すため、画面と API が同じオリジンにある前提です（開発時は Vite の `/api` プロキシ）。APK や別ホストの静的配信からは今のところ使えません。
+- テスト状態の OAuth アプリはリフレッシュトークンが 7 日で失効します。Google Health 側でデータ連携が済んでいないアカウントは `linked:false`（ACCOUNT_NOT_LINKED）として「データなし」を表示します。
+- 実際の Google アカウントでの通し確認と、各データ型のレスポンス項目名（歩数の `count`、睡眠の `minutesAsleep` など）の実データ照合はまだです。項目名は公式リファレンスに合わせて実装し、読めない場合は値を入れずに手入力へ戻します。
+
+公式: https://developers.google.com/health/setup 、https://developers.google.com/health/scopes 、https://developers.google.com/health/reference/rest/v4/users.dataTypes.dataPoints/list
+
 ## Firebase
 
 1. Firebaseプロジェクトを作成し、Authenticationの匿名ログインを有効化する。
