@@ -406,3 +406,38 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .repick-row button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:10px;color:#3a2a00;background:linear-gradient(180deg,#ffe28a,#f2bd3a);border:1px solid #fff3c499;box-shadow:inset 0 1px 0 #fff8d8,0 3px 8px rgba(0,0,0,.25)}
 .repick-row button:active{transform:translateY(2px)}
 .drawer-check span small{display:block;font-size:11px;color:#a3a7ad;margin-top:2px;line-height:1.4}
+/* ===================== リキッドグラス（より透明・ふちの光・表面の反射） ===================== */
+.immersive-app{--lg-tint-top:rgba(66,70,77,.30);--lg-tint-bottom:rgba(22,24,28,.46);--lg-blur:blur(30px) saturate(2.1) brightness(.92);--lg-rim:linear-gradient(140deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,.28) 18%,rgba(255,255,255,.04) 42%,rgba(255,255,255,0) 58%,rgba(255,255,255,.14) 78%,rgba(255,255,255,.55) 100%);--lg-spec:radial-gradient(120% 70% at 12% -10%,rgba(255,255,255,.34),rgba(255,255,255,.08) 38%,rgba(255,255,255,0) 60%);--lg-drop:0 1px 1px rgba(0,0,0,.12),0 8px 18px rgba(10,12,16,.22),0 26px 48px rgba(10,12,16,.24)}
+/* 面: 薄い色＋強いぼかし。内側の上に光、下に反射 */
+.immersive-app .glass-panel,.immersive-app.simple .brand,.immersive-app.simple .header-actions,.immersive-app .results-panel{background:linear-gradient(165deg,var(--lg-tint-top),var(--lg-tint-bottom));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 22px rgba(255,255,255,.06),var(--lg-drop);backdrop-filter:var(--lg-blur);-webkit-backdrop-filter:var(--lg-blur);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+/* 表面の映り込み */
+.immersive-app .glass-panel::before,.immersive-app.simple .brand::before,.immersive-app .results-panel::before{background:var(--lg-spec)}
+/* ふちの光（グラデーションの縁取り） */
+.immersive-app .glass-panel::after,.immersive-app.simple .brand::after,.immersive-app.simple .header-actions::after,.immersive-app .results-panel::after,.immersive-app .best-slide::after,.lg-btn::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.25px;background:var(--lg-rim);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);pointer-events:none;z-index:2}
+.immersive-app.simple .header-actions{position:relative}
+.immersive-app .scene-place::after,.immersive-app .time-panel::after{z-index:2}
+/* カルーセルの中のカード: さらに透明なガラスの板 */
+.immersive-app .best-slide{position:relative;background:linear-gradient(165deg,rgba(255,255,255,.13),rgba(255,255,255,.035));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),inset 0 0 18px rgba(255,255,255,.05),0 10px 22px rgba(0,0,0,.2);backdrop-filter:blur(10px) saturate(1.4);-webkit-backdrop-filter:blur(10px) saturate(1.4)}
+/* ボタン: 同じガラス素材。押すと光が強くなって沈む */
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button,.repick-row button,.rest-nudge>div button:first-child{position:relative;background:linear-gradient(170deg,rgba(255,255,255,.2),rgba(255,255,255,.05));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 10px rgba(255,255,255,.06),0 4px 10px rgba(0,0,0,.2);backdrop-filter:blur(12px) saturate(1.6);-webkit-backdrop-filter:blur(12px) saturate(1.6)}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary,.rest-nudge>div button:first-child{background:linear-gradient(170deg,rgba(232,244,204,.86),rgba(178,204,128,.68));color:#202814;text-shadow:0 1px 0 rgba(255,255,255,.45);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.35),inset 0 0 14px rgba(255,255,255,.25),0 6px 16px rgba(60,80,30,.35)}
+.repick-row button{background:linear-gradient(170deg,rgba(255,233,160,.9),rgba(242,184,58,.72));color:#3a2a00;text-shadow:0 1px 0 rgba(255,255,255,.5);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.3),0 5px 14px rgba(120,80,0,.3)}
+.best-preset.summer{background:linear-gradient(170deg,rgba(255,214,130,.38),rgba(240,149,44,.14))}
+.immersive-app .best-actions button:active,.best-preset:active,.best-arrow:active,.check-buttons button:active,.arrive-feedback button:active,.care-chip:active,.immersive-app .route-actions button:active,.repick-row button:active,.rest-nudge>div button:first-child:active{transform:translateY(1.5px) scale(.985);box-shadow:inset 0 1px 2px rgba(255,255,255,.75),inset 0 0 16px rgba(255,255,255,.22),0 1px 3px rgba(0,0,0,.2)}
+.drawer-radio input:checked+span,.route-radio input:checked+span{background:linear-gradient(170deg,rgba(225,240,190,.4),rgba(190,215,140,.18));box-shadow:inset 0 1px 1px rgba(255,255,255,.7),inset 0 0 12px rgba(220,240,180,.2),0 4px 10px rgba(0,0,0,.2)}
+/* チップもガラスの粒に */
+.best-chip,.care-match{backdrop-filter:blur(8px) saturate(1.5);-webkit-backdrop-filter:blur(8px) saturate(1.5);box-shadow:inset 0 1px 1px rgba(255,255,255,.3),0 1px 3px rgba(0,0,0,.15)}
+/* 引き出しは片側だけ角丸のガラス */
+.immersive-app .drawer.glass-panel{--lg-tint-top:rgba(60,64,70,.42);--lg-tint-bottom:rgba(20,22,26,.6)}
+/* 休憩のきっかけ（警告）は暖色のガラス */
+.immersive-app .rest-nudge.nudge-warn{--lg-tint-top:rgba(150,86,44,.38);--lg-tint-bottom:rgba(70,38,20,.55)}
+/* 小窓（モーダル）は明るいリキッドグラス */
+.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.74),rgba(240,242,234,.62));box-shadow:inset 0 1px 1px #ffffff,inset 0 -1px 1px rgba(255,255,255,.6),inset 0 0 30px rgba(255,255,255,.4),0 30px 70px rgba(15,17,20,.38);backdrop-filter:blur(32px) saturate(1.9);-webkit-backdrop-filter:blur(32px) saturate(1.9);border:1px solid rgba(255,255,255,.75)}
+/* ===================== つや: 吹き出しと時刻ピル ===================== */
+.spot-bubble{background-image:radial-gradient(circle at 32% 24%,rgba(255,255,255,.95),rgba(255,255,255,.35) 28%,rgba(255,255,255,0) 52%);box-shadow:inset 0 -3px 6px rgba(0,0,0,.12),inset 0 2px 2px rgba(255,255,255,.9),0 6px 14px #2a2c2f40}
+.spot-bubble::after{background-image:none}
+.bubble-pick{background-color:#ffd24d;box-shadow:inset 0 -4px 8px rgba(160,100,0,.28),inset 0 2px 2px rgba(255,255,255,.95),0 8px 18px #2a2c2f45}
+.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.92),rgba(240,242,236,.78));box-shadow:inset 0 1px 1px #fff,inset 0 -2px 4px rgba(0,0,0,.06),0 6px 16px rgba(20,22,25,.25);backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6)}
+@media(prefers-reduced-transparency:reduce){.immersive-app{--lg-tint-top:rgba(50,53,58,.94);--lg-tint-bottom:rgba(30,32,36,.96)}.immersive-app .best-slide{background:rgba(255,255,255,.08)}}
+.immersive-app .care-select{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left}
+.immersive-app .care-select>span{font-size:12px;color:#55585d;text-align:left}
