@@ -144,6 +144,19 @@ export class ShadeEngine {
     return tree ? 'tree' : 'sun'
   }
 
+  /**
+   * ベンチなど「広さのある場所」の日陰の割合。中心と前後左右（約 1.5 m）の 5 点を調べ、
+   * 日陰の点の割合から「日陰の可能性高／一部日陰／日なた」に分ける（SHADE SPOT の 3 段階表示）。
+   */
+  coverageAtXY(p: XY, sun: SunPosition, roof = false, spread = 1.5): ShadeCoverage {
+    const center = this.stateAtXY(p, sun, roof)
+    if (center === 'night' || center === 'roof') return { level: center, ratio: center === 'roof' ? 1 : 0, state: center }
+    const pts = [p, { x: p.x + spread, y: p.y }, { x: p.x - spread, y: p.y }, { x: p.x, y: p.y + spread }, { x: p.x, y: p.y - spread }]
+    const shaded = pts.filter((q, i) => isShaded(i === 0 ? center : this.stateAtXY(q, sun, false))).length
+    const ratio = shaded / pts.length
+    return { level: ratio >= 0.8 ? 'high' : ratio >= 0.2 ? 'partial' : 'sun', ratio, state: center }
+  }
+
   stateAt(p: LatLng, time: Date, roof = false): ShadeState {
     return this.stateAtXY(this.proj.toXY(p), sunPosition(time, this.proj.origin), roof)
   }
@@ -246,4 +259,20 @@ export const SHADE_LABEL: Record<ShadeState, string> = {
   tree: '木陰（推定）',
   roof: '屋根の下',
   night: '日差しなし',
+}
+
+export interface ShadeCoverage {
+  level: 'high' | 'partial' | 'sun' | 'night' | 'roof'
+  /** 調べた点のうち日陰だった割合（0〜1） */
+  ratio: number
+  /** 中心の点の状態（一覧の「日陰／日なた」と同じもの） */
+  state: ShadeState
+}
+
+export const COVERAGE_LABEL: Record<ShadeCoverage['level'], string> = {
+  high: '日陰の可能性高',
+  partial: '一部日陰',
+  sun: '日なた',
+  night: '日差しなし',
+  roof: '屋根の下',
 }
