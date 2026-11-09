@@ -12,7 +12,7 @@ export interface WalkFeature{kind:string;roadType?:string;points:[number,number]
 export interface WalkGraph{proj:LocalProjection;xy:XY[];adj:number[][];len:number[][];component:number[];largest:number}
 export interface WalkRoute{points:LatLng[];distance:number;fallback:boolean}
 export interface RouteSegment{points:LatLng[];state:'shade'|'sun'|'night'}
-export interface RouteShade{segments:RouteSegment[];shadedRatio:number|null}
+export interface RouteShade{segments:RouteSegment[];shadedRatio:number|null;sunM:number;totalM:number}
 export type EdgeCost=(from:number,to:number,length:number)=>number
 /** 歩けない道（高速道路・計画中・ホームなど） */
 const NOT_WALKABLE=new Set(['motorway','motorway_link','proposed','construction','platform'])
@@ -61,13 +61,16 @@ export function findWalkRoute(g:WalkGraph,from:LatLng,to:LatLng,cost?:EdgeCost):
  return straight
 }
 
-/** ルートを step m ごとに区切って日陰かどうかを調べ、同じ状態の区間をまとめる（地図の色分けと「日陰 ◯%」用） */
-export function routeShade(points:LatLng[],stateAt:(p:XY)=>ShadeState,proj:LocalProjection,step=8):RouteShade{
- const xy=points.map(p=>proj.toXY(p)),segments:RouteSegment[]=[];let shaded=0,total=0,night=true
- const add=(from:XY,to:XY)=>{const len=Math.hypot(to.x-from.x,to.y-from.y);if(len<.01)return;const s=stateAt({x:(from.x+to.x)/2,y:(from.y+to.y)/2}),state=s==='night'?'night':isShaded(s)?'shade':'sun';if(s!=='night'){night=false;total+=len;if(state==='shade')shaded+=len}
+/**
+ * ルートを step m ごとに区切って日陰かどうかを調べ、同じ状態の区間をまとめる（地図の色分けと「日陰 ◯%」「日なた ◯分」用）。
+ * stateAt の along は出発地からの距離（m）。歩いてそこを通る時刻の太陽で判定するのに使う
+ */
+export function routeShade(points:LatLng[],stateAt:(p:XY,along:number)=>ShadeState,proj:LocalProjection,step=8):RouteShade{
+ const xy=points.map(p=>proj.toXY(p)),segments:RouteSegment[]=[];let shaded=0,total=0,sunM=0,walked=0,night=true
+ const add=(from:XY,to:XY)=>{const len=Math.hypot(to.x-from.x,to.y-from.y);if(len<.01)return;const s=stateAt({x:(from.x+to.x)/2,y:(from.y+to.y)/2},walked+len/2),state=s==='night'?'night':isShaded(s)?'shade':'sun';walked+=len;if(s!=='night'){night=false;total+=len;if(state==='shade')shaded+=len;else sunM+=len}
   const last=segments[segments.length-1];if(last&&last.state===state)last.points.push(proj.toLatLng(to));else segments.push({state,points:[proj.toLatLng(from),proj.toLatLng(to)]})}
  for(let i=1;i<xy.length;i++){const a=xy[i-1],b=xy[i],len=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(len/step));let prev=a;for(let k=1;k<=n;k++){const t=k/n,next={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};add(prev,next);prev=next}}
- return {segments,shadedRatio:night||!total?null:shaded/total}
+ return {segments,shadedRatio:night||!total?null:shaded/total,sunM,totalM:walked}
 }
 
 /** 日陰優先の重み: 日なたの区間を (1 + penalty) 倍の長さとして扱う。辺ごとの結果は覚えておく */

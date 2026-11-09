@@ -123,27 +123,349 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .immersive-app .result-prob.level-text-high{color:#8fcf9f}.immersive-app .result-prob.level-text-mid{color:#ecc867}.immersive-app .result-prob.level-text-low{color:#ec8f7c}
 @media(max-width:1100px){.seat-legend{display:none}}
 @media(min-width:1600px){.seat-legend{left:392px}}
-/* リキッドグラス（PR #17 のデザインを移植。見た目のみ） */
-.immersive-app{--lg-tint-top:rgba(62,66,72,.56);--lg-tint-bottom:rgba(24,26,30,.74);--lg-blur:blur(32px) saturate(1.8) brightness(.9);--lg-rim:linear-gradient(140deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,.28) 18%,rgba(255,255,255,.04) 42%,rgba(255,255,255,0) 58%,rgba(255,255,255,.14) 78%,rgba(255,255,255,.55) 100%);--lg-spec:radial-gradient(120% 70% at 12% -10%,rgba(255,255,255,.34),rgba(255,255,255,.08) 38%,rgba(255,255,255,0) 60%);--lg-drop:0 1px 1px rgba(0,0,0,.12),0 8px 18px rgba(10,12,16,.22),0 26px 48px rgba(10,12,16,.24)}
-.immersive-app .glass-panel,.immersive-app .results-panel{background:linear-gradient(165deg,var(--lg-tint-top),var(--lg-tint-bottom));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 22px rgba(255,255,255,.06),var(--lg-drop);backdrop-filter:var(--lg-blur);-webkit-backdrop-filter:var(--lg-blur);text-shadow:0 1px 2px rgba(0,0,0,.35)}
-.immersive-app .glass-panel::before,.immersive-app .results-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:var(--lg-spec);z-index:0}
-.immersive-app .glass-panel::after,.immersive-app .results-panel::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.25px;background:var(--lg-rim);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);pointer-events:none;z-index:2}
-.immersive-app .glass-panel>*{position:relative;z-index:1}
-@media(min-width:761px){.immersive-app .results-panel>*{position:relative;z-index:1}}
-.immersive-app .glass-panel>.place-menu{position:absolute;z-index:30}
-.immersive-app .route-actions button{position:relative;background:linear-gradient(170deg,rgba(255,255,255,.17),rgba(255,255,255,.05)),rgba(36,38,42,.35);border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 10px rgba(255,255,255,.06),0 4px 10px rgba(0,0,0,.2);backdrop-filter:blur(12px) saturate(1.6);-webkit-backdrop-filter:blur(12px) saturate(1.6)}
-.immersive-app .route-button.primary{background:linear-gradient(170deg,rgba(234,245,208,.95),rgba(184,208,136,.86));color:#202814;text-shadow:0 1px 0 rgba(255,255,255,.45);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.35),inset 0 0 14px rgba(255,255,255,.25),0 6px 16px rgba(60,80,30,.35)}
-.immersive-app .route-actions button:active,.immersive-app .route-button.primary:active{transform:translateY(1.5px) scale(.985)}
-.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.9),rgba(242,244,236,.84));box-shadow:inset 0 1px 1px #fff,inset 0 -1px 1px rgba(255,255,255,.6),inset 0 0 30px rgba(255,255,255,.4),0 30px 70px rgba(15,17,20,.38);backdrop-filter:blur(32px) saturate(1.9);-webkit-backdrop-filter:blur(32px) saturate(1.9);border:1px solid rgba(255,255,255,.75)}
+/* 着いたとき日陰で座れるベンチ（地図上のおすすめカード） */
+.best-pick{position:absolute;z-index:24;top:99px;left:368px;right:420px;margin:0 auto;max-width:440px;padding:13px 14px 12px;border-radius:20px;color:#eef1ea;display:flex;flex-direction:column;gap:8px}
+.best-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.best-eyebrow{font-size:10px;letter-spacing:.6px;color:#e7c27c;font-weight:600}
+.best-next{display:flex;align-items:center;gap:2px;font-size:10px;color:#b9bdc2;padding:3px 4px 3px 8px;border-radius:10px}
+.best-next:hover{background:#ffffff12}
+.best-name{display:flex;align-items:baseline;justify-content:space-between;gap:10px;text-align:left;width:100%}
+.best-name strong{font-size:18px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.best-name span{font-size:12px;color:#c9cdd1;white-space:nowrap}
+.best-chips{display:flex;flex-wrap:wrap;gap:5px}
+.best-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:5px 8px;border-radius:12px;background:#ffffff10;color:#dfe3e6}
+.chip-shade{background:#3d5f8655;color:#d7e5f5}
+.chip-sun{background:#f0952c33;color:#f7d2a6}
+.chip-night{background:#ffffff10;color:#b9bdc2}
+.chip-level i{width:8px;height:8px;border-radius:50%;background:var(--level)}
+.chip-walk{background:#ffffff14}
+.best-reason{margin:0;font-size:11px;color:#c3c7cb;line-height:1.5}
+.best-actions{display:flex;gap:6px}
+.best-actions button{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;padding:9px 12px;border-radius:12px;color:#d6d9dc;background:#ffffff0d;border:1px solid #ffffff14}
+.best-actions button.primary{flex:1;background:#d7e4ba;color:#2f3133;border:0;font-weight:600}
+.best-actions button[aria-pressed=true]{background:#5f86b433;border-color:#8fb0d566;color:#e2ecf7}
+.best-actions button:not(.primary):first-child{flex:1}
+@media(max-width:1100px) and (min-width:761px){.best-pick{left:320px;right:345px}}
+@media(max-width:760px){.best-pick{top:181px;left:12px;right:65px;max-width:none;padding:11px 12px 10px;border-radius:18px;gap:7px}.best-name strong{font-size:16px}.panel-spots .best-pick{display:none}}
+/* 日の出・南中・日の入りの一行（時間帯の一覧の代わり） */
+.solar-sunline{display:flex;justify-content:space-between;gap:6px;background:#f3f6e80d;border:1px solid #ffffff07;border-radius:15px;padding:13px 14px;font-size:12px;color:#e9ecef}
+.solar-sunline span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.solar-sunline svg{color:#e8c47d}
+.solar-hint{font-size:10px;color:#a3a7ad;line-height:1.7;margin:10px 4px 0}
+/* 日陰の答え合わせ・夏14時 */
+.check-block{display:flex;flex-direction:column;gap:7px;margin-top:12px;padding-top:11px;border-top:1px solid #ffffff11}
+.check-block>span{font-size:10px;color:#c8ccd0}
+.check-buttons{display:flex;gap:6px}
+.check-buttons button{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;padding:9px 6px;border-radius:11px;color:#d8dde2;background:#ffffff0b;border:1px solid #ffffff14}
+.check-buttons button:first-child svg{color:#9cc0e6}.check-buttons button:last-child svg{color:#f0b46b}
+.check-block small{font-size:9px;color:#8f9399;line-height:1.6}
+.immersive-app .timeline-switches>button.summer-button{opacity:1;color:#f3cf8f;font-size:9px;border:1px solid #f3cf8f44;padding:6px 10px;border-radius:13px;background:#f0952c14}
+.immersive-app .timeline-switches>button.summer-button.on{background:#f0952c3a;color:#ffe3b5}
+@media(max-width:760px){.immersive-app .timeline-switches>button.summer-button{font-size:8px;padding:5px 8px}.solar-sunline{font-size:11px;padding:11px}}
+.immersive-app .timeline-switches>button.summer-button{white-space:nowrap}
+@media(max-width:760px){
+.immersive-app .timeline-switches>button.shadow-toggle,.immersive-app .timeline-switches>button.path-toggle{display:none}
+.best-name{flex-direction:column;align-items:flex-start;gap:3px}
+.best-name strong{white-space:normal;line-height:1.3}
+}
+/* ===== 簡略表示: 上はロゴとメニューだけ、下におすすめカード1枚。ほかの操作はメニューの中 ===== */
+.simple .search-area,.simple .filter-row,.simple .view-nav,.simple .map-tools,.simple .north,.simple .map-mode,.simple .add-spot,.simple .seat-legend,.simple .scene-place,.simple .time-panel,.simple .map-source,.simple .header-place{display:none!important}
+.simple .solar-panel{display:none}
+.immersive-app.simple.show-sun.panel-sun .solar-panel{display:flex;flex-direction:column}
+.simple .site-header{justify-content:space-between}
+.simple .header-actions{position:relative;padding:3px}
+.simple .menu-button{width:40px;height:40px}
+.main-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:240px;display:flex;flex-direction:column;padding:6px;border-radius:16px;z-index:40}
+.main-menu button{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 12px;border-radius:10px;font-size:13px;color:#eceef0}
+.main-menu button svg{color:#c9cdd1;flex-shrink:0}
+.main-menu button:hover{background:#ffffff14}
+.main-menu hr{border:0;border-top:1px solid #ffffff14;margin:4px 6px}
+/* カードは画面の下 */
+.simple .best-pick{top:auto;bottom:24px;left:24px;right:auto;width:400px;max-width:calc(100vw - 48px);margin:0;padding:14px 16px 14px;gap:9px}
+.simple.panel-spots .best-pick{left:384px}
+.best-time{display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #ffffff12}
+.best-time>span{font-size:10px;color:#a9adb2;white-space:nowrap}
+.best-time>strong{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;min-width:44px}
+.best-slider{flex:1;min-width:0;height:4px;-webkit-appearance:none;appearance:none;border-radius:4px;background:linear-gradient(to right,#d5bc82 var(--time-progress),#bec0c430 var(--time-progress));outline-offset:6px}
+.best-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff5d7;border:2px solid #f6e9bd;box-shadow:0 1px 4px #0004}
+.best-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff5d7;border:2px solid #f6e9bd}
+.best-preset{font-size:11px;padding:6px 10px;border-radius:11px;color:#e3e6e8;background:#ffffff10;border:1px solid #ffffff14;white-space:nowrap}
+.best-preset.summer{color:#f3cf8f;border-color:#f3cf8f44;background:#f0952c14}
+.best-preset.summer.on{background:#f0952c3a;color:#ffe3b5}
+.results-close{position:absolute;top:14px;right:12px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#d0d3d6;background:#ffffff0d;z-index:2}
+.simple .results-panel{top:88px}
+.simple .results-header{padding-right:40px}
+.simple .attribution{bottom:auto;top:84px;right:16px}
+@media(max-width:760px){
+.simple .best-pick{left:10px;right:10px;width:auto;max-width:none;bottom:max(10px,env(safe-area-inset-bottom));padding:12px 13px;border-radius:20px}
+.simple.panel-spots .best-pick{display:none}
+.simple .results-panel{top:68px;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom))}
+.simple .attribution{top:64px;right:10px}
+.simple .add-hint{top:68px;left:10px;right:10px}
+.immersive-app.simple.show-sun.panel-sun .solar-panel{display:flex}
+.simple.show-sun .best-pick{display:none}
+.main-menu{position:fixed;top:64px;right:10px;left:auto}
+.best-time>strong{font-size:16px}
+}
+.immersive-app.simple .attribution{display:block!important}
+/* 右端の時刻ピル（上下にドラッグで時刻を変え、影の動きを見る）は簡略表示でも残す。スマホでも表示 */
+.simple .edge-day,.simple .edge-now{display:none!important}
+.simple .edge-time{top:44%}
+@media(max-width:760px){.simple .edge-time{display:block;top:36%;font-size:14px;padding:8px 16px 8px 12px}}
+/* 建物の上に浮かぶ吹き出しのピン（「!」＝おすすめ、ベンチ＝ほかの候補） */
+.scene-bubbles{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.bubble-anchor{position:absolute;left:0;top:0;width:0;height:0}
+.spot-bubble{pointer-events:auto;position:absolute;left:0;bottom:12px;transform:translateX(-50%);display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#fffdf7;color:var(--level,#5b6b60);border:3px solid var(--level,#cfd6cc);box-shadow:0 6px 14px #2a2c2f33,0 1px 0 #ffffff inset;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+.spot-bubble::after{content:'';position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:inherit;border-right:3px solid var(--level,#cfd6cc);border-bottom:3px solid var(--level,#cfd6cc);transform:translateX(-50%) rotate(45deg);border-bottom-right-radius:3px}
+.spot-bubble:hover,.spot-bubble:focus-visible{transform:translateX(-50%) scale(1.1);box-shadow:0 10px 20px #2a2c2f40}
+.spot-bubble:focus-visible{outline:3px solid #ffffff;outline-offset:3px}
+.spot-bubble.is-active{transform:translateX(-50%) scale(1.14);box-shadow:0 0 0 5px #ffffffb0,0 10px 22px #2a2c2f45}
+.bubble-rank{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;background:#3a3d42;color:#fff;font-size:11px;font-weight:700;font-style:normal;display:grid;place-items:center;border:2px solid #fffdf7;line-height:1}
+.bubble-pick{width:54px;height:54px;background:#ffd24d;border-color:#ffffff;color:#3a2a00;animation:bubble-bob 2.4s ease-in-out infinite}
+.bubble-pick::after{border-color:#ffffff;background:#ffd24d}
+.bubble-pick.is-active{animation:bubble-bob 2.4s ease-in-out infinite,bubble-glow 2.4s ease-in-out infinite}
+.bubble-bang{font-size:30px;font-weight:900;line-height:1;margin-top:-2px;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif}
+@keyframes bubble-bob{0%,100%{translate:0 0}50%{translate:0 -6px}}
+@keyframes bubble-glow{0%,100%{box-shadow:0 0 0 4px #ffd24d55,0 10px 22px #2a2c2f45}50%{box-shadow:0 0 0 10px #ffd24d22,0 14px 26px #2a2c2f40}}
+@media(prefers-reduced-motion:reduce){.bubble-pick,.bubble-pick.is-active{animation:none}}
+.spot-bubble.level-high{--level:#4f9d69}.spot-bubble.level-mid{--level:#dcae35}.spot-bubble.level-low{--level:#d9604c}
+.bubble-pick.level-high,.bubble-pick.level-mid,.bubble-pick.level-low{--level:#ffffff}
+@media(max-width:760px){.spot-bubble{width:38px;height:38px}.bubble-pick{width:50px;height:50px}.bubble-bang{font-size:27px}}
+.svg-bubble{cursor:pointer;filter:drop-shadow(0 4px 6px #2a2c2f40)}
+.svg-bubble:focus-visible{outline:none}.svg-bubble:focus-visible circle{stroke:#2f6b4f}
+/* ===== ハンバーガーメニュー（右から出る引き出し） ===== */
+.drawer-root{position:fixed;inset:0;z-index:90;pointer-events:none}
+.drawer-backdrop{position:absolute;inset:0;background:#1f212480;opacity:0;transition:opacity .25s}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(320px,86vw);padding:max(16px,env(safe-area-inset-top)) 14px max(16px,env(safe-area-inset-bottom));border-radius:22px 0 0 22px;transform:translateX(104%);transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow-y:auto;color:#eceef0;display:flex;flex-direction:column;gap:14px}
+.drawer-root.is-open{pointer-events:auto}
+.drawer-root.is-open .drawer-backdrop{opacity:1}
+.drawer-root.is-open .drawer{transform:none}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0 6px}
+.drawer-head strong{font-size:16px;font-weight:600}
+.drawer section{display:flex;flex-direction:column;gap:2px}
+.drawer h3{font-size:10px;letter-spacing:1px;color:#9ea2a8;font-weight:500;margin:0 8px 4px}
+.drawer-item{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 10px;border-radius:12px;font-size:14px;color:#eceef0;min-height:46px}
+.drawer-item svg{color:#c9cdd1;flex-shrink:0}
+.drawer-item:hover,.drawer-item:focus-visible{background:#ffffff14}
+.drawer-count{margin-left:auto;font-size:11px;background:#ffffff14;border-radius:10px;padding:2px 8px;color:#c9cdd1}
+.drawer-radio{display:flex;gap:6px;border:0;padding:0;margin:0 0 6px}
+.drawer-radio label,.route-radio label,.weather-radio label{flex:1;position:relative;cursor:pointer}
+.drawer-radio input,.route-radio input,.weather-radio input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.drawer-radio span,.route-radio span,.weather-radio span{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:12px;font-size:13px;background:#ffffff0b;border:1px solid #ffffff18;color:#d6d9dc;min-height:44px}
+.drawer-radio span::before,.route-radio span::before,.weather-radio span::before{content:'';width:14px;height:14px;border-radius:50%;border:2px solid #b9bdc2;flex-shrink:0;box-sizing:border-box}
+.drawer-radio input:checked+span,.route-radio input:checked+span{background:#d7e4ba22;border-color:#d7e4ba88;color:#f3f7e8}
+.drawer-radio input:checked+span::before,.route-radio input:checked+span::before{border:4px solid #d7e4ba}
+.drawer-radio input:focus-visible+span,.route-radio input:focus-visible+span,.weather-radio input:focus-visible+span{outline:2px solid #fff;outline-offset:2px}
+.drawer-check{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;font-size:14px;min-height:46px;cursor:pointer}
+.drawer-check input{width:20px;height:20px;accent-color:#d7e4ba}
+.drawer-select{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;font-size:14px;min-height:46px}
+.drawer-select select{font-size:14px;padding:8px 10px;border-radius:10px;background:#ffffff12;color:#eceef0;border:1px solid #ffffff22;color-scheme:dark}
+.simple .menu-button{width:44px;height:44px}
+/* ===== カルーセル（おすすめ5件を横スワイプ） ===== */
+.best-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -16px;padding:0;-webkit-overflow-scrolling:touch}
+.best-track::-webkit-scrollbar{display:none}
+.best-slide{flex:0 0 100%;scroll-snap-align:center;padding:2px 16px 0;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;min-width:0}
+.best-count{font-size:10px;color:#a9adb2}
+.best-dots{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:-2px}
+.best-dot{width:8px;height:8px;border-radius:50%;background:#ffffff33;padding:0;transition:width .2s,background .2s}
+.best-dot.on{width:20px;border-radius:5px;background:#ffd24d}
+.best-arrow{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#d0d3d6;background:#ffffff0d}
+.best-arrow:disabled{opacity:.3}
+.route-radio{display:flex;gap:6px;border:0;padding:0;margin:0}
+.route-radio legend{font-size:10px;color:#a9adb2;margin-bottom:5px;padding:0}
+.route-radio span{min-height:38px;padding:8px;font-size:12px}
+@media(max-width:760px){.best-track{margin:0 -13px}.best-slide{padding:2px 13px 0}}
+/* ===== パンくずリスト ===== */
+.breadcrumb{margin:-6px 40px 10px 0}
+.breadcrumb ol{display:flex;flex-wrap:wrap;align-items:center;gap:2px;list-style:none;margin:0;padding:0;font-size:11px}
+.breadcrumb li{display:flex;align-items:center;min-width:0}
+.breadcrumb li+li::before{content:'›';color:#7d8288;margin:0 6px}
+.breadcrumb button{color:#c6d8b0;padding:6px 2px;text-decoration:underline;text-underline-offset:3px}
+.breadcrumb span[aria-current]{color:#e8ebee;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.view-list .featured-card{display:none}
+.view-detail .other-heading,.view-detail .result-card,.view-detail .show-more,.view-detail .sort-select,.view-detail .distance-row,.view-detail .legend-row{display:none!important}
+.view-detail .results-header .eyebrow{display:none}
+/* ===== アコーディオン ===== */
+.acc{border-top:1px solid #ffffff12;margin:0}
+.acc>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;padding:13px 2px;font-size:12px;color:#e3e7ea;min-height:44px}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary small{margin-left:auto;font-size:9px;color:#8f9399}
+.acc>summary::after{content:'';width:8px;height:8px;border-right:2px solid #b9bdc2;border-bottom:2px solid #b9bdc2;transform:rotate(45deg);margin:-4px 4px 0 10px;transition:transform .2s}
+.acc>summary:not(:has(small))::after{margin-left:auto}
+.acc[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
+.acc>summary:focus-visible{outline:2px solid #fff;outline-offset:2px;border-radius:6px}
+.acc>:not(summary){padding-bottom:12px}
+.immersive-app .acc.report-section,.immersive-app .acc.prediction-details{border-top:1px solid #ffffff12;padding:0;margin:0}
+.immersive-app .acc .shade-preview{margin:0}
+/* ===== 設定の天気（ラジオ） ===== */
+.weather-radio{display:flex;flex-wrap:wrap;gap:6px;border:0;padding:0;margin:6px 0 10px}
+.weather-radio legend{font-size:12px;margin-bottom:6px;padding:0;color:#55585d}
+.weather-radio span{background:#f3f4ee;border-color:#d7dacb;color:#3a3c40}
+.weather-radio span::before{border-color:#8a8f86}
+.weather-radio input:checked+span{background:#e3edcb;border-color:#9fb879;color:#2f3133}
+.weather-radio input:checked+span::before{border:4px solid #5f7f3e}
+/* ===== 使い方（モーダル） ===== */
+.help-steps{margin:4px 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.6;color:#3a3c40}
+.modal .acc{border-top-color:#e2e4dc}.modal .acc>summary{color:#3a3c40;font-size:13px}.modal .acc>summary::after{border-color:#7a7e84}
+.help-legend{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:13px;color:#3a3c40}
+.help-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--level);margin-right:8px;vertical-align:middle}
+.help-legend .dot-shade{--level:#5f86b4}.help-legend .dot-sun{--level:#f0952c;margin-left:8px}
+.modal-body.help .primary{width:100%;margin-top:14px;min-height:46px;font-size:15px}
+.acc .shade-preview>div:first-child{display:none}
+.view-detail .results-header{display:none}
+@media(max-width:760px){.simple.panel-spots .edge-time{display:none!important}}
+/* ===================== すりガラス＋少し立体（地図以外の UI） ===================== */
+.immersive-app{--g-top:rgba(78,82,88,.58);--g-bottom:rgba(30,33,36,.74);--g-line:rgba(255,255,255,.17);--g-hi:rgba(255,255,255,.3);--g-lo:rgba(0,0,0,.38);--g-drop:0 1px 2px rgba(10,12,14,.2),0 16px 36px rgba(18,20,23,.34)}
+.immersive-app .glass-panel,.immersive-app.simple .brand,.immersive-app.simple .header-actions,.immersive-app .results-panel{background:linear-gradient(160deg,var(--g-top),var(--g-bottom));border:1px solid var(--g-line);box-shadow:inset 0 1px 0 var(--g-hi),inset 0 -1px 0 var(--g-lo),var(--g-drop);backdrop-filter:blur(26px) saturate(1.6);-webkit-backdrop-filter:blur(26px) saturate(1.6)}
+.immersive-app .glass-panel::before,.immersive-app.simple .brand::before,.immersive-app .results-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.17),rgba(255,255,255,0) 36%,rgba(255,255,255,0) 70%,rgba(255,255,255,.05));z-index:0}
+.immersive-app.simple .brand{position:relative}
+.immersive-app .glass-panel>*,.immersive-app .results-panel>*{position:relative;z-index:1}
+.immersive-app .best-pick{position:absolute}
+.immersive-app .results-panel>.results-close{position:absolute}
+/* 立体のボタン: 上に光、下に影。押すと沈む */
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.22);transition:transform .12s ease,box-shadow .12s ease,background .2s}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary{background:linear-gradient(180deg,#f1f8dc,#c7d99f);color:#283019;border:1px solid #ffffff99;box-shadow:inset 0 1px 0 #ffffff,inset 0 -2px 0 rgba(70,92,40,.35),0 6px 14px rgba(0,0,0,.28)}
+.immersive-app .best-actions button:active,.best-preset:active,.best-arrow:active,.check-buttons button:active,.arrive-feedback button:active,.care-chip:active,.immersive-app .route-actions button:active,.immersive-app .route-button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.2)}
+.best-preset.summer{background:linear-gradient(180deg,rgba(255,206,110,.32),rgba(240,149,44,.12))}
+.best-chip,.care-match{box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 2px rgba(0,0,0,.15)}
+.best-slider{box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+/* カルーセル: 隣のカードが少し見え、横のカードは奥に傾く */
+.immersive-app .best-track{perspective:1000px;padding:4px 7% 8px;gap:10px;margin:0 -16px;scroll-padding:0 7%}
+.immersive-app .best-slide{flex:0 0 86%;padding:12px 13px 11px;border-radius:17px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 20px rgba(0,0,0,.24);transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .38s}
+.immersive-app .best-slide.is-prev{transform:rotateY(14deg) scale(.9);opacity:.55;transform-origin:right center}
+.immersive-app .best-slide.is-next{transform:rotateY(-14deg) scale(.9);opacity:.55;transform-origin:left center}
+@media(max-width:760px){.immersive-app .best-track{margin:0 -13px}}
+@media(prefers-reduced-motion:reduce){.immersive-app .best-slide{transition:none}.immersive-app .best-slide.is-prev,.immersive-app .best-slide.is-next{transform:none}}
+/* モーダルは明るいすりガラス */
+.immersive-app .modal{background:linear-gradient(170deg,rgba(255,255,252,.9),rgba(244,245,238,.86));border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 #ffffff,0 2px 4px rgba(0,0,0,.08),0 30px 70px rgba(15,17,20,.4);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4)}
 .immersive-app .modal .primary{background:linear-gradient(180deg,#4a4e53,#2f3236);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 14px rgba(0,0,0,.25)}
-.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.97),rgba(242,244,238,.9));box-shadow:inset 0 1px 1px #fff,inset 0 -2px 4px rgba(0,0,0,.06),0 6px 16px rgba(20,22,25,.25);backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6)}
-/* スマホ幅の一覧はボトムシートの中に置くので、パネル側のガラスは重ねない */
-@media(max-width:760px){.immersive-app .bottom-sheet .results-panel::before,.immersive-app .bottom-sheet .results-panel::after{display:none}}
-@media(prefers-reduced-transparency:reduce){.immersive-app{--lg-tint-top:rgba(50,53,58,.94);--lg-tint-bottom:rgba(30,32,36,.96)}}
+/* ===================== いまの状態・休憩のきっかけ・希望・1タップの報告・情報源 ===================== */
+.care-chip{display:flex;align-items:center;gap:7px;width:100%;padding:8px 11px;border-radius:13px;color:#e8ebe4;font-size:11px;text-align:left;margin-bottom:9px}
+.care-chip>svg:first-child{color:#f1a6a6;flex-shrink:0}
+.care-chip span{color:#a9adb2;flex-shrink:0}
+.care-chip b{font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.care-chip>svg:last-child{color:#c9cdd1;flex-shrink:0}
+.care-matches{display:flex;flex-wrap:wrap;gap:5px}
+.care-match{font-size:10px;padding:3px 8px;border-radius:10px}
+.care-match.ok{background:#4f9d6933;color:#bfe3c8}
+.care-match.ng{background:#ffffff0d;color:#8f9399}
+.arrive-feedback{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border-radius:13px;background:#ffffff0a;border:1px solid #ffffff12}
+.arrive-feedback>span{font-size:10px;color:#c3c7cb}
+.arrive-feedback>div{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.arrive-feedback button{font-size:11px;padding:8px 2px;border-radius:10px;color:#e3e7ea;min-height:38px}
+@media(max-width:400px){.arrive-feedback>div{grid-template-columns:repeat(2,1fr)}}
+.rest-nudge{position:absolute;z-index:25;top:92px;left:24px;width:min(400px,calc(100vw - 48px));display:flex;align-items:flex-start;gap:10px;padding:12px 12px 12px 14px;border-radius:18px;color:#f1f3ee}
+.rest-nudge>svg{flex-shrink:0;margin-top:2px;color:#f1a6a6}
+.rest-nudge p{margin:0;font-size:12px;line-height:1.6;flex:1;min-width:0}
+.rest-nudge small{display:block;font-size:9px;color:#a9adb2;margin-top:3px}
+.rest-nudge>div{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.rest-nudge>div button:first-child{font-size:11px;padding:8px 10px;border-radius:11px;white-space:nowrap;background:linear-gradient(180deg,#f1f8dc,#c7d99f);color:#283019;box-shadow:inset 0 1px 0 #fff,0 4px 10px rgba(0,0,0,.25)}
+.rest-nudge>div button:last-child{color:#c9cdd1;padding:4px}
+.immersive-app .rest-nudge.nudge-warn{--g-top:rgba(120,72,40,.6);--g-bottom:rgba(58,34,22,.78)}
+@media(max-width:760px){.rest-nudge{top:64px;left:10px;right:10px;width:auto}.simple.panel-spots .rest-nudge{display:none}}
+.source-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:11px;color:#c9cdd1;line-height:1.55}
+.source-list b{display:inline-block;min-width:6.5em;color:#e6e9ec;font-weight:500}
+/* いまの状態の入力（モーダル） */
+.care-form{display:flex;flex-direction:column;gap:12px}
+.care-radio,.care-checks{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:7px}
+.care-radio legend,.care-checks legend{font-size:12px;color:#55585d;margin-bottom:6px;padding:0;width:100%}
+.care-radio label,.care-checks label{position:relative;cursor:pointer}
+.care-radio input,.care-checks input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.care-radio span,.care-checks span{display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:13px;font-size:14px;background:linear-gradient(180deg,#ffffff,#eef0e7);border:1px solid #d7dacb;color:#3a3c40;box-shadow:inset 0 1px 0 #fff,0 2px 4px rgba(0,0,0,.08);min-height:44px}
+.care-radio span::before{content:'';width:15px;height:15px;border-radius:50%;border:2px solid #8a8f86;box-sizing:border-box}
+.care-checks span::before{content:'';width:15px;height:15px;border-radius:4px;border:2px solid #8a8f86;box-sizing:border-box}
+.care-radio input:checked+span,.care-checks input:checked+span{background:linear-gradient(180deg,#eef6dc,#d7e8b4);border-color:#9fb879;color:#2f3133}
+.care-radio input:checked+span::before{border:5px solid #5f7f3e}
+.care-checks input:checked+span::before{background:#5f7f3e;border-color:#5f7f3e;box-shadow:inset 0 0 0 2px #eef6dc}
+.care-radio input:focus-visible+span,.care-checks input:focus-visible+span{outline:2px solid #2f6b4f;outline-offset:2px}
+.care-select{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;color:#3a3c40}
+.care-select select{font-size:14px;padding:9px 12px;border-radius:11px;border:1px solid #d7dacb;background:#fff;color:#2f3133}
+.care-form .primary{min-height:46px;font-size:15px}
+@media(max-width:760px){
+.simple .best-pick{padding:10px 12px 9px;gap:7px}
+.care-chip{padding:6px 10px;margin-bottom:4px}
+.best-time{padding-bottom:7px}
+.immersive-app .best-slide{padding:10px 11px 9px;gap:6px}
+.best-chip{font-size:9.5px;padding:4px 7px}
+.best-reason{font-size:10.5px}
+.best-actions button{padding:8px 10px}
+.immersive-app .best-track{padding-bottom:6px}
+}
+.immersive-app .best-name{flex-direction:column;align-items:flex-start;gap:3px}
+.immersive-app .best-name strong{white-space:normal;line-height:1.3}
+@media(min-width:761px){.simple .best-pick{width:440px}}
+/* 候補を固定しているときの「この時刻で選び直す」 */
+.repick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:12px;background:#ffd24d14;border:1px solid #ffd24d33;margin:2px 0 0}
+.repick-row span{flex:1;min-width:0;font-size:10px;line-height:1.45;color:#e9dcb8}
+.repick-row button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:10px;color:#3a2a00;background:linear-gradient(180deg,#ffe28a,#f2bd3a);border:1px solid #fff3c499;box-shadow:inset 0 1px 0 #fff8d8,0 3px 8px rgba(0,0,0,.25)}
+.repick-row button:active{transform:translateY(2px)}
+.drawer-check span small{display:block;font-size:11px;color:#a3a7ad;margin-top:2px;line-height:1.4}
+/* 候補を固定しているときの「この時刻で選び直す」 */
+.repick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:12px;background:#ffd24d14;border:1px solid #ffd24d33;margin:2px 0 0}
+.repick-row span{flex:1;min-width:0;font-size:10px;line-height:1.45;color:#e9dcb8}
+.repick-row button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:10px;color:#3a2a00;background:linear-gradient(180deg,#ffe28a,#f2bd3a);border:1px solid #fff3c499;box-shadow:inset 0 1px 0 #fff8d8,0 3px 8px rgba(0,0,0,.25)}
+.repick-row button:active{transform:translateY(2px)}
+.drawer-check span small{display:block;font-size:11px;color:#a3a7ad;margin-top:2px;line-height:1.4}
+/* ===================== リキッドグラス（より透明・ふちの光・表面の反射） ===================== */
+.immersive-app{--lg-tint-top:rgba(66,70,77,.30);--lg-tint-bottom:rgba(22,24,28,.46);--lg-blur:blur(30px) saturate(2.1) brightness(.92);--lg-rim:linear-gradient(140deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,.28) 18%,rgba(255,255,255,.04) 42%,rgba(255,255,255,0) 58%,rgba(255,255,255,.14) 78%,rgba(255,255,255,.55) 100%);--lg-spec:radial-gradient(120% 70% at 12% -10%,rgba(255,255,255,.34),rgba(255,255,255,.08) 38%,rgba(255,255,255,0) 60%);--lg-drop:0 1px 1px rgba(0,0,0,.12),0 8px 18px rgba(10,12,16,.22),0 26px 48px rgba(10,12,16,.24)}
+/* 面: 薄い色＋強いぼかし。内側の上に光、下に反射 */
+.immersive-app .glass-panel,.immersive-app.simple .brand,.immersive-app.simple .header-actions,.immersive-app .results-panel{background:linear-gradient(165deg,var(--lg-tint-top),var(--lg-tint-bottom));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 22px rgba(255,255,255,.06),var(--lg-drop);backdrop-filter:var(--lg-blur);-webkit-backdrop-filter:var(--lg-blur);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+/* 表面の映り込み */
+.immersive-app .glass-panel::before,.immersive-app.simple .brand::before,.immersive-app .results-panel::before{background:var(--lg-spec)}
+/* ふちの光（グラデーションの縁取り） */
+.immersive-app .glass-panel::after,.immersive-app.simple .brand::after,.immersive-app.simple .header-actions::after,.immersive-app .results-panel::after,.immersive-app .best-slide::after,.lg-btn::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.25px;background:var(--lg-rim);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);pointer-events:none;z-index:2}
+.immersive-app.simple .header-actions{position:relative}
+.immersive-app .scene-place::after,.immersive-app .time-panel::after{z-index:2}
+/* カルーセルの中のカード: さらに透明なガラスの板 */
+.immersive-app .best-slide{position:relative;background:linear-gradient(165deg,rgba(255,255,255,.13),rgba(255,255,255,.035));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),inset 0 0 18px rgba(255,255,255,.05),0 10px 22px rgba(0,0,0,.2);backdrop-filter:blur(10px) saturate(1.4);-webkit-backdrop-filter:blur(10px) saturate(1.4)}
+/* ボタン: 同じガラス素材。押すと光が強くなって沈む */
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button,.repick-row button,.rest-nudge>div button:first-child{position:relative;background:linear-gradient(170deg,rgba(255,255,255,.2),rgba(255,255,255,.05));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 10px rgba(255,255,255,.06),0 4px 10px rgba(0,0,0,.2);backdrop-filter:blur(12px) saturate(1.6);-webkit-backdrop-filter:blur(12px) saturate(1.6)}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary,.rest-nudge>div button:first-child{background:linear-gradient(170deg,rgba(232,244,204,.86),rgba(178,204,128,.68));color:#202814;text-shadow:0 1px 0 rgba(255,255,255,.45);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.35),inset 0 0 14px rgba(255,255,255,.25),0 6px 16px rgba(60,80,30,.35)}
+.repick-row button{background:linear-gradient(170deg,rgba(255,233,160,.9),rgba(242,184,58,.72));color:#3a2a00;text-shadow:0 1px 0 rgba(255,255,255,.5);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.3),0 5px 14px rgba(120,80,0,.3)}
+.best-preset.summer{background:linear-gradient(170deg,rgba(255,214,130,.38),rgba(240,149,44,.14))}
+.immersive-app .best-actions button:active,.best-preset:active,.best-arrow:active,.check-buttons button:active,.arrive-feedback button:active,.care-chip:active,.immersive-app .route-actions button:active,.repick-row button:active,.rest-nudge>div button:first-child:active{transform:translateY(1.5px) scale(.985);box-shadow:inset 0 1px 2px rgba(255,255,255,.75),inset 0 0 16px rgba(255,255,255,.22),0 1px 3px rgba(0,0,0,.2)}
+.drawer-radio input:checked+span,.route-radio input:checked+span{background:linear-gradient(170deg,rgba(225,240,190,.4),rgba(190,215,140,.18));box-shadow:inset 0 1px 1px rgba(255,255,255,.7),inset 0 0 12px rgba(220,240,180,.2),0 4px 10px rgba(0,0,0,.2)}
+/* チップもガラスの粒に */
+.best-chip,.care-match{backdrop-filter:blur(8px) saturate(1.5);-webkit-backdrop-filter:blur(8px) saturate(1.5);box-shadow:inset 0 1px 1px rgba(255,255,255,.3),0 1px 3px rgba(0,0,0,.15)}
+/* 引き出しは片側だけ角丸のガラス */
+.immersive-app .drawer.glass-panel{--lg-tint-top:rgba(60,64,70,.42);--lg-tint-bottom:rgba(20,22,26,.6)}
+/* 休憩のきっかけ（警告）は暖色のガラス */
+.immersive-app .rest-nudge.nudge-warn{--lg-tint-top:rgba(150,86,44,.38);--lg-tint-bottom:rgba(70,38,20,.55)}
+/* 小窓（モーダル）は明るいリキッドグラス */
+.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.74),rgba(240,242,234,.62));box-shadow:inset 0 1px 1px #ffffff,inset 0 -1px 1px rgba(255,255,255,.6),inset 0 0 30px rgba(255,255,255,.4),0 30px 70px rgba(15,17,20,.38);backdrop-filter:blur(32px) saturate(1.9);-webkit-backdrop-filter:blur(32px) saturate(1.9);border:1px solid rgba(255,255,255,.75)}
+/* ===================== つや: 吹き出しと時刻ピル ===================== */
+.spot-bubble{background-image:radial-gradient(circle at 32% 24%,rgba(255,255,255,.95),rgba(255,255,255,.35) 28%,rgba(255,255,255,0) 52%);box-shadow:inset 0 -3px 6px rgba(0,0,0,.12),inset 0 2px 2px rgba(255,255,255,.9),0 6px 14px #2a2c2f40}
+.spot-bubble::after{background-image:none}
+.bubble-pick{background-color:#ffd24d;box-shadow:inset 0 -4px 8px rgba(160,100,0,.28),inset 0 2px 2px rgba(255,255,255,.95),0 8px 18px #2a2c2f45}
+.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.92),rgba(240,242,236,.78));box-shadow:inset 0 1px 1px #fff,inset 0 -2px 4px rgba(0,0,0,.06),0 6px 16px rgba(20,22,25,.25);backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6)}
+@media(prefers-reduced-transparency:reduce){.immersive-app{--lg-tint-top:rgba(50,53,58,.94);--lg-tint-bottom:rgba(30,32,36,.96)}.immersive-app .best-slide{background:rgba(255,255,255,.08)}}
+.immersive-app .care-select{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left}
+.immersive-app .care-select>span{font-size:12px;color:#55585d;text-align:left}
+/* 透け感を控えめに（縁取りと映り込みはそのまま、色を濃くする） */
+.immersive-app{--lg-tint-top:rgba(62,66,72,.56);--lg-tint-bottom:rgba(24,26,30,.74);--lg-blur:blur(32px) saturate(1.8) brightness(.9)}
+.immersive-app .drawer.glass-panel{--lg-tint-top:rgba(58,62,68,.66);--lg-tint-bottom:rgba(22,24,28,.82)}
+.immersive-app .rest-nudge.nudge-warn{--lg-tint-top:rgba(140,80,42,.6);--lg-tint-bottom:rgba(66,36,20,.78)}
+.immersive-app .best-slide{background:linear-gradient(165deg,rgba(255,255,255,.1),rgba(255,255,255,.04)),rgba(30,32,36,.28)}
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button{background:linear-gradient(170deg,rgba(255,255,255,.17),rgba(255,255,255,.05)),rgba(36,38,42,.35)}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary,.rest-nudge>div button:first-child{background:linear-gradient(170deg,rgba(234,245,208,.95),rgba(184,208,136,.86))}
+.repick-row button{background:linear-gradient(170deg,rgba(255,234,165,.96),rgba(242,186,62,.88))}
+.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.9),rgba(242,244,236,.84))}
+.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.97),rgba(242,244,238,.9))}
 /* 空席予測 v1: 確からしさと時間推移 */
 .immersive-app .seat-box .confidence-row{grid-column:1/-1;flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-top:9px;font-size:10px;color:#c5d2b6}.immersive-app .seat-box .confidence-row b{font-weight:600;padding:3px 8px;border-radius:999px;background:#ffffff12}.immersive-app .seat-box .confidence-row small{flex-basis:100%;color:#959aa0;font-size:9px}.immersive-app .seat-box .confidence-high b{color:#9fd3ae;background:#5fae7826}.immersive-app .seat-box .confidence-mid b{color:#efd08a;background:#e3b64124}.immersive-app .seat-box .confidence-low b{color:#efa293;background:#e0674f24}
 .seat-trend{margin-top:12px}.trend-bars{display:flex;align-items:flex-end;gap:2px;height:54px;padding:0 1px}.trend-bar{flex:1;height:100%;display:flex;align-items:flex-end;padding:0;border:0;background:none;cursor:pointer;min-width:0;border-radius:3px}.trend-bar i{display:block;width:100%;height:var(--h);border-radius:3px 3px 1px 1px;background:var(--level);opacity:.55;transition:opacity .15s}.trend-bar:hover i,.trend-bar.current i{opacity:1}.trend-bar.current{box-shadow:inset 0 0 0 1px #ffffff66}.trend-bar.best i{opacity:.95;box-shadow:0 0 0 1.5px #fff8 inset}.trend-bar:focus-visible{outline:2px solid #d7e4ba;outline-offset:1px}
 @media(max-width:760px){.trend-bars{height:60px;gap:2px}.trend-bar{min-height:44px}.immersive-app .seat-box .confidence-row{font-size:11px}.immersive-app .seat-box .confidence-row small{font-size:10px}}
+/* main のスマホ用CSSと合わせたときに、地図のクレジットが縦に伸びないようにする */
+.immersive-app.simple .attribution{bottom:auto!important;left:auto!important;height:auto!important;max-height:none}
+@media(max-width:760px){.immersive-app.simple .attribution{top:calc(64px + env(safe-area-inset-top))!important;right:10px!important;max-width:70%}}
+.simple .quality-toggle{display:none!important}
+/* 目印の建物の名前の札（3D の上に浮かぶ） */
+.scene-landmarks{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.landmark-label{position:absolute;left:0;top:0;width:0;height:0}
+.landmark-label span{position:absolute;left:0;bottom:6px;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:700;letter-spacing:.2px;color:#2d3135;padding:4px 9px;border-radius:10px;background:linear-gradient(170deg,rgba(255,255,255,.95),rgba(244,245,240,.86));box-shadow:inset 0 1px 1px #fff,0 3px 10px rgba(20,22,25,.22);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.landmark-label span::after{content:'';position:absolute;left:50%;top:100%;width:1.5px;height:6px;margin-left:-.75px;background:rgba(255,255,255,.9)}
+.landmark-label.rank-2 span{font-size:10px;font-weight:600;padding:3px 7px;color:#41464c;background:rgba(255,255,255,.82)}
+@media(max-width:760px){.landmark-label span{font-size:10px;padding:3px 7px}.landmark-label.rank-2 span{font-size:9px}}
 /* 休憩する（RC-1・RC-5・RC-7） */
 .rest-nav{display:flex;align-items:center;gap:5px;border:0;background:none;color:inherit;font-size:10px;padding:4px 10px;min-height:34px;border-radius:20px;cursor:pointer}.rest-nav:hover{background:#ffffff14}
 .rest-banner{position:fixed;z-index:60;top:92px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:min(620px,calc(100vw - 32px));padding:12px 12px 12px 16px;border-radius:18px;background:var(--glass);border:1px solid var(--glass-line);color:var(--glass-text);backdrop-filter:blur(20px);box-shadow:0 8px 30px #2a2c2f30}.rest-banner>svg{color:var(--sun);flex:none}.rest-banner p{margin:0;flex:1;font-size:11px;line-height:1.6;display:flex;flex-direction:column}.rest-banner p span{color:var(--glass-muted)}
