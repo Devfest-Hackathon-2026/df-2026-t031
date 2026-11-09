@@ -7,8 +7,8 @@ import {jstDate,jstParts,dayTypeOf} from '../src/domain/time.ts'
 import {ShadeEngine} from '../src/domain/shade.ts'
 import {buildingShadowXY} from '../src/domain/shadowPolygons.ts'
 import {parseOsm} from '../src/domain/osm.ts'
-import {predictSeat,postsApply,postWeight} from '../src/domain/seat.ts'
-import {validateSaved,EMPTY} from '../src/lib/storage.ts'
+import {predictSeat,postsApply,postWeight,historyOffset,hoursSinceRain,seatNeighborMap,confidenceOf} from '../src/domain/seat.ts'
+import {validateSaved,validFeatures,EMPTY} from '../src/lib/storage.ts'
 import {demoWeather,weatherAt} from '../src/lib/weather.ts'
 import type {Spot,Building,SeatReport} from '../src/domain/types.ts'
 const proj=new LocalProjection(AREA_CENTER)
@@ -35,6 +35,21 @@ describe('空席予測と実投稿',()=>{
  it('未来の時刻には現在の投稿を反映しない',()=>{const time=new Date(now.getTime()+2*3600000);const p=predictSeat({...base,time,reports:[{id:'r',spotId:spot.id,value:'full',reportedAt:now.toISOString(),origin:'local'}]});expect(p.combined).toBe(p.ai);expect(postsApply(time,now)).toBe(false)})
  it('投稿の重みが20分で半分になる',()=>expect(postWeight(20)).toBe(.5))
  it('90分を超えた投稿は除外する',()=>{const p=predictSeat({...base,reports:[{id:'r',spotId:spot.id,value:'full',reportedAt:new Date(now.getTime()-91*60000).toISOString(),origin:'local'}]});expect(p.posts).toEqual([]);expect(p.combined).toBe(p.ai)})
+})
+describe('空席予測 v1（学習・要因・確からしさ）',()=>{
+ const now=jstDate('2026-11-04',720),base={spot,time:now,now,dayType:dayTypeOf(now),weather:demoWeather('2026-11-04',720),wbgt:null,shade:'sun' as const,events:[],location:{multiplier:1,nearest:null},reports:[] as SeatReport[]}
+ const old=(value:'sat'|'full',daysAgo:number,ai:number,i=0):SeatReport=>({id:'h'+value+daysAgo+i,spotId:spot.id,value,reportedAt:new Date(now.getTime()-daysAgo*86400000).toISOString(),origin:'local',features:{hour:12,dayType:'weekday',temperatureC:20,wbgt:null,condition:'clear',shade:'sun',roof:false,aiProbability:ai}})
+ it('過去に「座れた」が多いと予測を上げ、「満席」が多いと下げる',()=>{const r=predictSeat(base).rule;const up=predictSeat({...base,reports:[1,2,3,4].map(d=>old('sat',d,.2))});const down=predictSeat({...base,reports:[1,2,3,4].map(d=>old('full',d,.9))});expect(up.ai).toBeGreaterThan(r);expect(down.ai).toBeLessThan(r);expect(up.rule).toBe(r);expect(up.history?.n).toBeGreaterThan(0)})
+ it('投稿時の入力がない投稿・直近の投稿は学習に使わない',()=>{const bare={...old('full',3,.9),features:undefined};expect(historyOffset(spot.id,[bare],now,now,'weekday')).toBe(null);const recent={...old('full',0,.9),reportedAt:new Date(now.getTime()-10*60000).toISOString()};expect(historyOffset(spot.id,[recent],now,now,'weekday')).toBe(null)})
+ it('件数が少ないうちは補正を小さくする',()=>{const one=historyOffset(spot.id,[old('full',1,.9)],now,now,'weekday')!;expect(Math.abs(one.offset)).toBeLessThan(.9/3)})
+ it('近くの地点の投稿は投稿込みの値だけを動かす',()=>{const r:SeatReport={id:'n',spotId:'b2',value:'full',reportedAt:now.toISOString(),origin:'local'};const p=predictSeat({...base,neighbors:[{spotId:'b2',distanceM:50}],reports:[r]});const q=predictSeat({...base,neighbors:[{spotId:'b2',distanceM:50}]});expect(p.ai).toBe(q.ai);expect(p.combined).toBeLessThan(q.combined);expect(p.nearbyPosts).toBe(1)})
+ it('80m以内のほかの座れる場所は人が分散して座りやすくなる',()=>{const p=predictSeat({...base,neighbors:[{spotId:'x',distanceM:30},{spotId:'y',distanceM:60},{spotId:'z',distanceM:120}]});expect(p.factors.find(f=>f.key==='nearby')?.multiplier).toBe(.9);expect(p.ai).toBeGreaterThan(predictSeat(base).ai)})
+ it('近くの地点を150m以内で求める',()=>{const other={...spot,id:'c',position:position(0,125)},far={...spot,id:'d',position:position(0,400)};const m=seatNeighborMap([spot,other,far]);expect(m.get('a')?.map(n=>n.spotId)).toEqual(['c']);expect(m.get('a')![0].distanceM).toBeGreaterThan(95);expect(m.get('a')![0].distanceM).toBeLessThan(105)})
+ it('雨上がりの経過時間を求め、屋根なしの座面がぬれている間は座る人が減る',()=>{const h=(min:number,c:'rain'|'clear')=>({...demoWeather('2026-11-04',min),time:jstDate('2026-11-04',min).toISOString(),condition:c});const hours=[h(600,'rain'),h(660,'clear'),h(720,'clear')];expect(hoursSinceRain(hours,jstDate('2026-11-04',690))).toBe(.5);expect(hoursSinceRain(hours,jstDate('2026-11-04',630))).toBe(null);const wet=predictSeat({...base,hoursSinceRain:.5});expect(wet.factors.find(f=>f.key==='wet')?.multiplier).toBe(.5);expect(wet.ai).toBeGreaterThan(predictSeat(base).ai);expect(predictSeat({...base,hoursSinceRain:.5,shade:'roof'}).factors.some(f=>f.key==='wet')).toBe(false)})
+ it('日没後の屋根なしは暗さの要因が付く',()=>{expect(predictSeat({...base,shade:'night'}).factors.some(f=>f.key==='dark')).toBe(true);expect(predictSeat({...base,shade:'night',spot:{...spot,roof:'yes'}}).factors.some(f=>f.key==='dark')).toBe(false)})
+ it('確からしさは仮定が多いと低く、投稿があると高く、幅は0〜1に収まる',()=>{const c={seatsAssumed:true,weatherIsDemo:true,hoursAhead:8,historyN:0,liveWeight:0,applies:false};const low=confidenceOf(.5,c);expect(low.level).toBe('low');expect(low.notes).toEqual(expect.arrayContaining(['席数は仮定','天気はデモの値','先の時刻の予測']));const high=confidenceOf(.5,{...c,seatsAssumed:false,weatherIsDemo:false,hoursAhead:0,liveWeight:2,applies:true});expect(high.level).toBe('high');expect(high.high-high.low).toBeLessThan(low.high-low.low);const edge=confidenceOf(.99,c);expect(edge.low).toBeGreaterThanOrEqual(0);expect(edge.high).toBeLessThanOrEqual(1)})
+ it('予測の結果に確からしさとモデル名が入る',()=>{const p=predictSeat({...base,weatherIsDemo:true});expect(p.method).toBe('rule-v1');expect(p.confidence.low).toBeLessThanOrEqual(p.combined);expect(p.confidence.high).toBeGreaterThanOrEqual(p.combined);expect(p.confidence.notes).toContain('天気はデモの値')})
+ it('投稿時の入力を検証して保存し、不正な値は捨てる',()=>{const f=old('sat',1,.4).features!;expect(validFeatures(f)).toEqual(f);expect(validFeatures({...f,aiProbability:2})).toBe(undefined);expect(validFeatures({...f,dayType:'x'})).toBe(undefined);const saved=validateSaved({...EMPTY,reports:[old('sat',1,.4),{...old('full',1,.4),features:{bad:1}}]});expect(saved.reports[0].features).toEqual(f);expect(saved.reports[1]).not.toHaveProperty('features')})
 })
 describe('同梱データとバックアップ',()=>{
  it('実データの変換と日陰判定が完了する',()=>{const raw=JSON.parse(readFileSync('public/data/area-osm.json','utf8'));const d=parseOsm(raw,{origin:AREA_CENTER,live:false});expect(d.spots.length).toBe(256);expect(d.buildings.length).toBeGreaterThan(1000);const engine=new ShadeEngine(d.buildings,d.trees,AREA_CENTER);for(const s of d.spots)expect(['sun','roof','building','tree','night']).toContain(engine.stateAt(s.position,jstDate('2026-11-04',780),s.roof==='yes'))})

@@ -4,14 +4,15 @@ import { DAY_TYPE_LABEL, jstParts } from './time.ts'
 import type { AreaEvent, Attractor, DayType, SeatFactor, SeatPrediction, SeatReport, ShadeState, Spot, SpotKind, WeatherHour } from './types.ts'
 
 /**
- * 空席確率 v0（カメラ・センサーなし）。
+ * 空席確率 v1（カメラ・センサーなし）。
  *
- * 1 席あたりの埋まりやすさ ρ = 基準値 × 時間帯 × 天気 × 暑さ × イベント × 人通り（0.02〜0.97 に収める）
+ * 1 席あたりの埋まりやすさ ρ = 基準値 × 時間帯 × 天気 × 雨上がり × 暑さ × 暗さ × イベント × 人通り × 近くの席（0.02〜0.97 に収める）
  * 1 人で気兼ねなく座れる席数 n = ceil(席数 / 2)（他人と隣り合わせを避ける前提）
  * 空席確率 = 1 − ρ^n（席ごとに独立に埋まると仮定）
  *
- * 学習済みのモデルではなく、根拠を説明できる重み付けのルール。係数はここにまとめてあり、
- * 投稿（座れた／満席）がたまったらロジスティック回帰などで置き換える想定（docs/API_GUIDE.md）。
+ * ルールの確率に、同じ地点の過去の投稿（似た曜日・時間帯）から学んだ補正を足したものを AI 予測とする。
+ * 直近 90 分の投稿（その地点と 150m 以内の地点）はさらにベイズ風に混ぜて combined にする。
+ * 係数はここにまとめてある。投稿が十分たまったらロジスティック回帰などで係数自体を学習する想定（docs/API_GUIDE.md）。
  * Gemini には数値を計算させない（同じ入力で必ず同じ数字になるようにする）。
  */
 
@@ -23,6 +24,18 @@ export const SEAT_MODEL = {
   postHalfLifeMin: 20,
   /** AI 予測を「投稿何件分」として扱うか */
   priorWeight: 1.5,
+  /** 近くの地点の投稿: 対象にする距離（m）と重み（同じ地点の投稿の何倍か。距離に比例して小さくする） */
+  nearbyPostRadiusM: 150,
+  nearbyPostWeight: 0.35,
+  /** この距離（m）以内のほかの座れる場所は「人が分散する」とみなす */
+  competitionRadiusM: 80,
+  /** 過去の投稿からの補正: 曜日の種類が違うときの重み、時間帯の近さ（時）、重みが半分になる日数、0 に引き寄せる強さ（件数） */
+  historyOtherDayWeight: 0.3,
+  historyHourSigma: 1.5,
+  historyHalfLifeDays: 30,
+  historyShrink: 3,
+  /** 確からしさ: ルールを観測何回分とみなすか */
+  baseEvidence: 5,
 }
 
 export const SEAT_KINDS: ReadonlySet<SpotKind> = new Set(['bench', 'shelter', 'picnic'])
@@ -75,6 +88,28 @@ export function locationFactor(spot: Spot, attractors: Attractor[]): { multiplie
   return { multiplier: round2(0.7 + 0.8 * (1 - Math.exp(-score))), nearest }
 }
 
+// ───────── 近くの席 ─────────
+
+/** 近くの席の地点（自分を除く）。地点ごとに 1 回だけ計算すればよい */
+export interface SeatNeighbor {
+  spotId: string
+  distanceM: number
+}
+
+/** 各座れる地点から radiusM 以内の、ほかの座れる地点の一覧 */
+export function seatNeighborMap(spots: Spot[], radiusM = SEAT_MODEL.nearbyPostRadiusM): Map<string, SeatNeighbor[]> {
+  const seatSpots = spots.filter(isSeatSpot)
+  return new Map(
+    seatSpots.map((s) => [
+      s.id,
+      seatSpots
+        .filter((o) => o.id !== s.id)
+        .map((o) => ({ spotId: o.id, distanceM: haversineM(s.position, o.position) }))
+        .filter((n) => n.distanceM <= radiusM),
+    ]),
+  )
+}
+
 // ───────── 予測 ─────────
 
 export interface SeatInputs {
@@ -91,6 +126,12 @@ export interface SeatInputs {
   events: AreaEvent[]
   location: { multiplier: number; nearest: Attractor | null }
   reports: SeatReport[]
+  /** 雨がやんでから何時間か（予報から求める）。降っていない・分からなければ null */
+  hoursSinceRain?: number | null
+  /** 近くの座れる地点（150m 以内） */
+  neighbors?: SeatNeighbor[]
+  /** 天気が実際の予報ではなくデモの値か */
+  weatherIsDemo?: boolean
 }
 
 function timeFactor(dayType: DayType, time: Date): SeatFactor {
@@ -115,6 +156,44 @@ function weatherFactor(w: WeatherHour | null, roofed: boolean): SeatFactor | nul
   if (!roofed && (w.precipitationProbability ?? 0) >= 60) return { key: 'weather', label: `降水確率 ${w.precipitationProbability}%`, multiplier: 0.8 }
   if (w.condition === 'cloudy' || w.condition === 'fog') return { key: 'weather', label: 'くもり', multiplier: 0.95 }
   return { key: 'weather', label: w.condition === 'clear' ? '晴れ' : '晴れ時々くもり', multiplier: 1 }
+}
+
+const isRainy = (c: WeatherHour['condition']) => c === 'rain' || c === 'heavy-rain' || c === 'snow'
+
+/**
+ * 予報の時間別データから「雨がやんでから何時間か」を求める（0〜3 時間だけ。それより前・雨なしは null）。
+ * 予測する時刻にまだ降っているときも null（その場合は天気の倍率で扱う）
+ */
+export function hoursSinceRain(hours: WeatherHour[], time: Date): number | null {
+  const t = time.getTime()
+  const current = hours.find((h) => t >= Date.parse(h.time) && t < Date.parse(h.time) + 3_600_000)
+  if (!current || isRainy(current.condition)) return null
+  let latestEnd = -Infinity
+  for (const h of hours) {
+    const end = Date.parse(h.time) + 3_600_000
+    if (isRainy(h.condition) && end <= t && end > latestEnd) latestEnd = end
+  }
+  const hrs = (t - latestEnd) / 3_600_000
+  return hrs <= 3 ? Math.round(hrs * 100) / 100 : null
+}
+
+function wetFactor(hrs: number | null | undefined, roofed: boolean): SeatFactor | null {
+  if (roofed || hrs === null || hrs === undefined) return null
+  if (hrs <= 1) return { key: 'wet', label: '雨上がり（座面がまだぬれていそう）', multiplier: 0.5 }
+  if (hrs <= 2) return { key: 'wet', label: '雨上がり（座面が乾ききっていないかも）', multiplier: 0.75 }
+  return { key: 'wet', label: '雨上がり（ほぼ乾いていそう）', multiplier: 0.9 }
+}
+
+function darkFactor(shade: ShadeState, roofed: boolean): SeatFactor | null {
+  if (shade !== 'night' || roofed) return null
+  return { key: 'dark', label: '日没後で暗い（座る人が減る）', multiplier: 0.75 }
+}
+
+/** 80m 以内に座れる場所がほかにあると、人が分散して埋まりにくい（最大 2 割減） */
+function nearbyFactor(neighbors: SeatNeighbor[] | undefined): SeatFactor | null {
+  const k = (neighbors ?? []).filter((n) => n.distanceM <= SEAT_MODEL.competitionRadiusM).length
+  if (k === 0) return null
+  return { key: 'nearby', label: `80m 以内にほかの座れる場所が ${k} か所（人が分散する）`, multiplier: round2(Math.max(0.8, 1 - 0.05 * k)) }
 }
 
 function heatFactor(wbgt: number | null, temp: number | null, shade: ShadeState): SeatFactor | null {
@@ -187,15 +266,55 @@ export function postsApply(time: Date, now: Date): boolean {
   return diff >= -15 && diff <= 30
 }
 
+const sameDayClass = (a: DayType, b: DayType) => (a === 'weekday') === (b === 'weekday')
+
+/**
+ * 過去の投稿（直近 postWindowMin 分より前）からの補正。
+ * 同じ地点の「座れた／満席」の投稿のうち、投稿時の入力（features）が残っているものだけを使い、
+ * 「実際（座れた=1・満席=0）− 投稿時のルールの確率」を、曜日の種類・時間帯の近さ・新しさで重み付けして平均する。
+ * 件数が少ないうちは 0 に引き寄せる（historyShrink 件分の「補正なし」を足す）。
+ */
+export function historyOffset(
+  spotId: string,
+  reports: SeatReport[],
+  time: Date,
+  now: Date,
+  dayType: DayType,
+): { offset: number; n: number } | null {
+  const p = jstParts(time)
+  const hour = p.hour + p.minute / 60
+  let wsum = 0
+  let rsum = 0
+  for (const r of reports) {
+    if (r.spotId !== spotId || r.value === 'missing' || !r.features || r.features.aiProbability === null) continue
+    const minutesAgo = (now.getTime() - Date.parse(r.reportedAt)) / 60_000
+    if (!(minutesAgo > SEAT_MODEL.postWindowMin)) continue
+    const dh = r.features.hour - hour
+    const w =
+      (sameDayClass(r.features.dayType, dayType) ? 1 : SEAT_MODEL.historyOtherDayWeight) *
+      Math.exp(-(dh * dh) / (2 * SEAT_MODEL.historyHourSigma ** 2)) *
+      Math.pow(0.5, minutesAgo / (SEAT_MODEL.historyHalfLifeDays * 1440))
+    if (w < 0.01) continue
+    wsum += w
+    rsum += w * ((r.value === 'sat' ? 1 : 0) - r.features.aiProbability)
+  }
+  if (wsum === 0) return null
+  return { offset: round3(rsum / (wsum + SEAT_MODEL.historyShrink)), n: round2(wsum) }
+}
+
+const clamp01 = (n: number, lo = 0.01, hi = 0.99) => Math.max(lo, Math.min(hi, n))
+
 export function predictSeat(inp: SeatInputs): SeatPrediction {
   const roofed = inp.shade === 'roof' || inp.spot.roof === 'yes'
   const factors: SeatFactor[] = [timeFactor(inp.dayType, inp.time)]
-  const wf = weatherFactor(inp.weather, roofed)
-  if (wf) factors.push(wf)
-  const hf = heatFactor(inp.wbgt, inp.weather?.temperatureC ?? null, inp.shade)
-  if (hf) factors.push(hf)
-  const ef = eventFactor(inp.spot, inp.events, inp.time)
-  if (ef) factors.push(ef)
+  for (const f of [
+    weatherFactor(inp.weather, roofed),
+    wetFactor(inp.hoursSinceRain, roofed),
+    heatFactor(inp.wbgt, inp.weather?.temperatureC ?? null, inp.shade),
+    darkFactor(inp.shade, roofed),
+    eventFactor(inp.spot, inp.events, inp.time),
+  ])
+    if (f) factors.push(f)
   const near = inp.location.nearest?.name
   factors.push({
     key: 'location',
@@ -207,6 +326,8 @@ export function predictSeat(inp: SeatInputs): SeatPrediction {
           : `人通りはふつう${near ? `（${near}の近く）` : ''}`,
     multiplier: inp.location.multiplier,
   })
+  const nf = nearbyFactor(inp.neighbors)
+  if (nf) factors.push(nf)
 
   let rho = SEAT_MODEL.baseOccupancy
   for (const f of factors) rho *= f.multiplier
@@ -220,24 +341,39 @@ export function predictSeat(inp: SeatInputs): SeatPrediction {
       : `${seats.seats} 席（1 人で座れる目安 ${seats.effective} 席）`,
     multiplier: 1,
   })
-  const ai = 1 - Math.pow(rho, seats.effective)
+  const rule = 1 - Math.pow(rho, seats.effective)
+  const history = historyOffset(inp.spot.id, inp.reports, inp.time, inp.now, inp.dayType)
+  const ai = history ? clamp01(rule + history.offset) : rule
 
   const posts = recentPosts(inp.spot.id, inp.reports, inp.now)
+  const applies = postsApply(inp.time, inp.now)
   let combined = ai
-  if (postsApply(inp.time, inp.now)) {
+  let liveWeight = 0
+  let nearbyPosts = 0
+  if (applies) {
     let wsum = SEAT_MODEL.priorWeight
     let vsum = SEAT_MODEL.priorWeight * ai
-    for (const p of posts) {
-      if (p.value === 'missing') continue
-      const w = postWeight(p.minutesAgo)
+    const add = (value: SeatReport['value'], w: number) => {
       wsum += w
-      vsum += w * (p.value === 'sat' ? 1 : 0)
+      vsum += w * (value === 'sat' ? 1 : 0)
+      liveWeight += w
+    }
+    for (const p of posts) if (p.value !== 'missing') add(p.value, postWeight(p.minutesAgo))
+    // 近くの地点の投稿（150m 以内）。遠いほど・古いほど軽い
+    for (const n of inp.neighbors ?? []) {
+      for (const p of recentPosts(n.spotId, inp.reports, inp.now)) {
+        if (p.value === 'missing') continue
+        add(p.value, postWeight(p.minutesAgo) * SEAT_MODEL.nearbyPostWeight * (1 - n.distanceM / SEAT_MODEL.nearbyPostRadiusM))
+        nearbyPosts++
+      }
     }
     combined = vsum / wsum
   }
 
   return {
     spotId: inp.spot.id,
+    rule: round3(rule),
+    history,
     ai: round3(ai),
     occupancy: round3(rho),
     effectiveSeats: seats.effective,
@@ -245,9 +381,61 @@ export function predictSeat(inp: SeatInputs): SeatPrediction {
     factors,
     posts,
     combined: round3(combined),
-    method: 'rule-v0',
+    nearbyPosts,
+    confidence: confidenceOf(combined, {
+      seatsAssumed: seats.assumed,
+      weatherIsDemo: !!inp.weatherIsDemo,
+      hoursAhead: (inp.time.getTime() - inp.now.getTime()) / 3_600_000,
+      historyN: history?.n ?? 0,
+      liveWeight,
+      applies,
+    }),
+    method: 'rule-v1',
   }
 }
+
+/**
+ * 確からしさ。ルールを「観測 baseEvidence 回分」とみなし、仮定が多いほど減らし、投稿があるほど増やす。
+ * 幅は二項分布の正規近似（80% → ±1.28σ）。実測で校正した幅ではない
+ */
+export function confidenceOf(
+  p: number,
+  c: { seatsAssumed: boolean; weatherIsDemo: boolean; hoursAhead: number; historyN: number; liveWeight: number; applies: boolean },
+): SeatPrediction['confidence'] {
+  const notes: string[] = []
+  let n = SEAT_MODEL.baseEvidence
+  if (c.seatsAssumed) {
+    n -= 1
+    notes.push('席数は仮定')
+  }
+  if (c.weatherIsDemo) {
+    n -= 1
+    notes.push('天気はデモの値')
+  }
+  if (Math.abs(c.hoursAhead) > 6) {
+    n -= 1
+    notes.push(c.hoursAhead > 0 ? '先の時刻の予測' : '過去の時刻の推定')
+  }
+  n = Math.max(1, n)
+  if (c.historyN > 0) {
+    n += c.historyN
+    notes.push('過去の投稿で補正')
+  }
+  if (c.liveWeight > 0) {
+    n += c.liveWeight * 2
+    notes.push('直近の投稿あり')
+  } else if (c.applies) notes.push('直近の投稿なし')
+  const sd = Math.sqrt((p * (1 - p)) / (n + 1))
+  return {
+    level: n >= 7 ? 'high' : n >= 4 ? 'mid' : 'low',
+    low: round3(Math.max(0, p - 1.28 * sd)),
+    high: round3(Math.min(1, p + 1.28 * sd)),
+    effectiveN: round2(n),
+    notes,
+  }
+}
+
+export const CONFIDENCE_LABEL: Record<SeatPrediction['confidence']['level'], string> = { high: '高', mid: '中', low: '低' }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000
 

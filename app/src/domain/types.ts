@@ -220,6 +220,7 @@ export interface SeatFeatureSnapshot {
   condition: WeatherCondition | null
   shade: ShadeState
   roof: boolean
+  /** 投稿したときのルールだけの空席確率（過去投稿の補正を含まない）。過去投稿との差を学習に使う */
   aiProbability: number | null
 }
 
@@ -228,15 +229,32 @@ export interface SeatFeatureSnapshot {
 export type DayType = 'weekday' | 'weekend' | 'holiday'
 
 export interface SeatFactor {
-  key: 'time' | 'weather' | 'heat' | 'event' | 'location' | 'seats'
+  key: 'time' | 'weather' | 'wet' | 'heat' | 'dark' | 'event' | 'location' | 'nearby' | 'seats'
   label: string
   /** 混み具合への倍率（1 より大きいと混みやすい）。席数の行は 1 */
   multiplier: number
 }
 
+export type ConfidenceLevel = 'high' | 'mid' | 'low'
+
+export interface SeatConfidence {
+  level: ConfidenceLevel
+  /** 80% のおおよその幅（combined のまわり） */
+  low: number
+  high: number
+  /** 根拠の量を「観測何回分」に直した目安 */
+  effectiveN: number
+  /** 確からしさを下げた・上げた理由 */
+  notes: string[]
+}
+
 export interface SeatPrediction {
   spotId: string
-  /** AI 予測（投稿を含まない）の空席確率 0〜1 */
+  /** ルールだけの空席確率（過去の投稿による補正の前） */
+  rule: number
+  /** 過去の投稿（90 分より前）から学んだ補正。似た曜日・時間帯の投稿がなければ null */
+  history: { offset: number; n: number } | null
+  /** AI 予測（ルール＋過去投稿の補正。直近の投稿は含まない）の空席確率 0〜1 */
   ai: number
   /** 1 席あたりの埋まりやすさ 0〜1 */
   occupancy: number
@@ -247,5 +265,8 @@ export interface SeatPrediction {
   posts: { value: SeatReportValue; minutesAgo: number; origin: SeatReport['origin'] }[]
   /** 投稿で補正した値。投稿がなければ ai と同じ */
   combined: number
-  method: 'rule-v0'
+  /** combined に使った近くの地点（150m 以内）の直近の投稿の件数 */
+  nearbyPosts: number
+  confidence: SeatConfidence
+  method: 'rule-v1'
 }

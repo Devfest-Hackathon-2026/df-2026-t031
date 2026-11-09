@@ -5,7 +5,7 @@ import {Armchair,Heart,Sun,LocateFixed,Plus,SlidersHorizontal,Info,X,HelpCircle}
  * ハンバーガーメニュー（右から出る引き出し）。地図の表示はラジオボタン、表示の切り替えはチェック、
  * 歩ける時間はプルダウンで選ぶ。Esc か背景のタップで閉じる。
  */
-interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void;followTime:boolean;onFollowTime:(v:boolean)=>void
+interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void;followTime:boolean;onFollowTime:(v:boolean)=>void;lightQuality?:boolean;onLightQuality?:(v:boolean)=>void
  onList:()=>void;onFavorites:()=>void;onSun:()=>void;onLocate:()=>void;onAdd:()=>void;onHelp:()=>void;onSettings:()=>void;onAbout:()=>void}
 export const WALK_OPTIONS=[10,15,20,30]
 export default function MenuDrawer(p:Props){
@@ -28,6 +28,7 @@ export default function MenuDrawer(p:Props){
     </fieldset>
     <label className="drawer-check"><input type="checkbox" checked={p.showShadow} onChange={e=>p.onShadow(e.target.checked)}/><span>建物の影を表示</span></label>
     <label className="drawer-check"><input type="checkbox" checked={p.showPath} onChange={e=>p.onPath(e.target.checked)}/><span>太陽の通り道を表示</span></label>
+    {p.onLightQuality?<label className="drawer-check"><input type="checkbox" checked={!!p.lightQuality} onChange={e=>p.onLightQuality!(e.target.checked)}/><span>軽量表示（スマホ向け）<small>影や細部を減らして、動きを軽くします</small></span></label>:null}
    </section>
    <section><h3>探し方</h3>
     <label className="drawer-select"><span>歩ける時間</span><select value={p.maxWalk} onChange={e=>p.onMaxWalk(Number(e.target.value))}>{WALK_OPTIONS.map(m=><option key={m} value={m}>{m}分まで</option>)}</select></label>

@@ -79,7 +79,46 @@
  .has-route .add-spot{display:none}.immersive-app .notice{bottom:calc(153px + env(safe-area-inset-bottom));font-size:12px;width:calc(100% - 28px);max-width:480px;z-index:100}.immersive-app .busy{top:calc(174px + env(safe-area-inset-top));font-size:12px}
  .immersive-app .modal{max-height:calc(100dvh - 36px);width:calc(100% - 24px)}.immersive-app .modal h2{font-size:18px}.immersive-app .modal-body{font-size:14px}
 }
-@media(max-width:370px){.view-nav button{padding:8px 9px;font-size:10px}.immersive-app .brand{font-size:25px;padding:7px 8px}.timeline-date input{font-size:11px;width:112px;max-width:112px}.time-display strong{font-size:23px}.timeline-switches{gap:0}.sheet-preview strong{max-width:200px}.immersive-app .results-header h2{font-size:15px}}
+/* スマホ操作性：入力は16px（iOSの自動ズーム防止）、押せる所は44px、一覧を開いたら時刻パネルを畳んで一覧を広く */
+@media(max-width:760px){.immersive-app .search-box input{font-size:16px}
+.immersive-app .search-box input::placeholder{font-size:14px}
+.immersive-app .sort-select select,.immersive-app .distance-row select{font-size:16px;max-width:none;min-height:44px}
+.immersive-app .modal input:not([type=checkbox]):not([type=range]),.immersive-app .modal select{font-size:16px}
+.timeline-date input{font-size:16px;width:128px;max-width:128px;min-height:44px;padding-left:6px;padding-right:4px}
+.immersive-app .time-heading{gap:6px}
+.immersive-app .time-display{margin-left:0;gap:4px}
+.immersive-app .time-display small{display:none}
+.immersive-app .timeline-switches{gap:3px;flex:none}
+.immersive-app .time-panel{padding-left:14px;padding-right:14px}
+.immersive-app .filter-row{right:0;padding-right:28px;scroll-snap-type:x proximity;scroll-padding-left:14px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+.immersive-app .filter-row button{min-height:44px;font-size:12px;scroll-snap-align:start}
+.view-nav button{font-size:12px}
+.immersive-app .timeline-switches>button,.immersive-app .timeline-switches>button.now-button{min-width:44px;min-height:44px}
+.immersive-app .timeline-switches>button.now-button{font-size:11px}
+.immersive-app .time-panel{padding-top:10px;padding-bottom:calc(12px + env(safe-area-inset-bottom));transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility .28s}
+.immersive-app .timeline-track{margin-top:4px}
+.time-display small{font-size:9px}
+.immersive-app .time-ticks{font-size:10px}
+.immersive-app .time-footnote{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.immersive-app .summary-copy{min-width:0}
+.immersive-app .summary-copy em{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}
+.sheet-preview small,.preview-prob small{font-size:10px}
+.immersive-app .map-source{font-size:9px}
+.bottom-sheet{transition:height .28s cubic-bezier(.2,.8,.2,1),bottom .28s cubic-bezier(.2,.8,.2,1)}
+.panel-spots .notice{bottom:calc(272px + env(safe-area-inset-bottom))}
+.panel-spots:has(.sheet-half) .time-panel,.panel-spots:has(.sheet-full) .time-panel{transform:translateY(105%);visibility:hidden}
+.panel-spots:has(.sheet-half) .bottom-sheet,.panel-spots:has(.sheet-full) .bottom-sheet{bottom:0;padding-bottom:env(safe-area-inset-bottom)}
+.bottom-sheet.sheet-half{height:calc(min(56dvh,470px) + env(safe-area-inset-bottom))}
+.bottom-sheet.sheet-full{height:calc(100dvh - 176px - env(safe-area-inset-top))}
+.panel-spots:has(.sheet-half) .map-tools,.panel-spots:has(.sheet-full) .map-tools{display:none}
+.panel-spots:has(.sheet-half) .attribution{bottom:calc(min(56dvh,470px) + env(safe-area-inset-bottom) + 4px)}
+.panel-spots:has(.sheet-half) .map-source{bottom:calc(min(56dvh,470px) + env(safe-area-inset-bottom) + 24px)}
+.panel-spots:has(.sheet-half) .notice{bottom:calc(min(56dvh,470px) + env(safe-area-inset-bottom) + 10px)}
+.panel-spots:has(.sheet-full) .notice{top:calc(178px + env(safe-area-inset-top));bottom:auto}
+.immersive-app .modal{width:100%;max-width:none;margin:auto 0 0;border-radius:26px 26px 0 0;max-height:calc(100dvh - 24px - env(safe-area-inset-top));padding-bottom:env(safe-area-inset-bottom)}
+}
+
+@media(max-width:370px){.view-nav button{padding:8px 9px;font-size:10px}.immersive-app .brand{font-size:25px;padding:7px 8px}.timeline-date input{font-size:11px;width:112px;max-width:112px}.time-display strong{font-size:23px}.timeline-switches{gap:0}.sheet-preview strong{max-width:200px}.immersive-app .results-header h2{font-size:15px}.immersive-app .time-panel{padding-left:8px;padding-right:8px}.immersive-app .time-heading{gap:4px}.immersive-app .summary-copy em{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 @media(max-width:760px) and (max-height:700px){.bottom-sheet.sheet-half{height:38dvh}.bottom-sheet.sheet-full{height:calc(100dvh - 300px)}.immersive-app .map-mode{top:calc(370px + env(safe-area-inset-top))}.quality-toggle{top:calc(418px + env(safe-area-inset-top))}.immersive-app .map-tools button:nth-child(4){display:none}}
 @media(max-width:760px) and (max-height:700px){.immersive-app .map-mode{top:calc(330px + env(safe-area-inset-top))}.quality-toggle,.immersive-app .map-tools button:nth-child(n+3){display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
