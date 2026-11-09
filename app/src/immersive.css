@@ -233,3 +233,84 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 @media(max-width:760px){.spot-bubble{width:38px;height:38px}.bubble-pick{width:50px;height:50px}.bubble-bang{font-size:27px}}
 .svg-bubble{cursor:pointer;filter:drop-shadow(0 4px 6px #2a2c2f40)}
 .svg-bubble:focus-visible{outline:none}.svg-bubble:focus-visible circle{stroke:#2f6b4f}
+/* ===== ハンバーガーメニュー（右から出る引き出し） ===== */
+.drawer-root{position:fixed;inset:0;z-index:90;pointer-events:none}
+.drawer-backdrop{position:absolute;inset:0;background:#1f212480;opacity:0;transition:opacity .25s}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(320px,86vw);padding:max(16px,env(safe-area-inset-top)) 14px max(16px,env(safe-area-inset-bottom));border-radius:22px 0 0 22px;transform:translateX(104%);transition:transform .28s cubic-bezier(.2,.8,.2,1);overflow-y:auto;color:#eceef0;display:flex;flex-direction:column;gap:14px}
+.drawer-root.is-open{pointer-events:auto}
+.drawer-root.is-open .drawer-backdrop{opacity:1}
+.drawer-root.is-open .drawer{transform:none}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0 6px}
+.drawer-head strong{font-size:16px;font-weight:600}
+.drawer section{display:flex;flex-direction:column;gap:2px}
+.drawer h3{font-size:10px;letter-spacing:1px;color:#9ea2a8;font-weight:500;margin:0 8px 4px}
+.drawer-item{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 10px;border-radius:12px;font-size:14px;color:#eceef0;min-height:46px}
+.drawer-item svg{color:#c9cdd1;flex-shrink:0}
+.drawer-item:hover,.drawer-item:focus-visible{background:#ffffff14}
+.drawer-count{margin-left:auto;font-size:11px;background:#ffffff14;border-radius:10px;padding:2px 8px;color:#c9cdd1}
+.drawer-radio{display:flex;gap:6px;border:0;padding:0;margin:0 0 6px}
+.drawer-radio label,.route-radio label,.weather-radio label{flex:1;position:relative;cursor:pointer}
+.drawer-radio input,.route-radio input,.weather-radio input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.drawer-radio span,.route-radio span,.weather-radio span{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:12px;font-size:13px;background:#ffffff0b;border:1px solid #ffffff18;color:#d6d9dc;min-height:44px}
+.drawer-radio span::before,.route-radio span::before,.weather-radio span::before{content:'';width:14px;height:14px;border-radius:50%;border:2px solid #b9bdc2;flex-shrink:0;box-sizing:border-box}
+.drawer-radio input:checked+span,.route-radio input:checked+span{background:#d7e4ba22;border-color:#d7e4ba88;color:#f3f7e8}
+.drawer-radio input:checked+span::before,.route-radio input:checked+span::before{border:4px solid #d7e4ba}
+.drawer-radio input:focus-visible+span,.route-radio input:focus-visible+span,.weather-radio input:focus-visible+span{outline:2px solid #fff;outline-offset:2px}
+.drawer-check{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;font-size:14px;min-height:46px;cursor:pointer}
+.drawer-check input{width:20px;height:20px;accent-color:#d7e4ba}
+.drawer-select{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;font-size:14px;min-height:46px}
+.drawer-select select{font-size:14px;padding:8px 10px;border-radius:10px;background:#ffffff12;color:#eceef0;border:1px solid #ffffff22;color-scheme:dark}
+.simple .menu-button{width:44px;height:44px}
+/* ===== カルーセル（おすすめ5件を横スワイプ） ===== */
+.best-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -16px;padding:0;-webkit-overflow-scrolling:touch}
+.best-track::-webkit-scrollbar{display:none}
+.best-slide{flex:0 0 100%;scroll-snap-align:center;padding:2px 16px 0;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;min-width:0}
+.best-count{font-size:10px;color:#a9adb2}
+.best-dots{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:-2px}
+.best-dot{width:8px;height:8px;border-radius:50%;background:#ffffff33;padding:0;transition:width .2s,background .2s}
+.best-dot.on{width:20px;border-radius:5px;background:#ffd24d}
+.best-arrow{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#d0d3d6;background:#ffffff0d}
+.best-arrow:disabled{opacity:.3}
+.route-radio{display:flex;gap:6px;border:0;padding:0;margin:0}
+.route-radio legend{font-size:10px;color:#a9adb2;margin-bottom:5px;padding:0}
+.route-radio span{min-height:38px;padding:8px;font-size:12px}
+@media(max-width:760px){.best-track{margin:0 -13px}.best-slide{padding:2px 13px 0}}
+/* ===== パンくずリスト ===== */
+.breadcrumb{margin:-6px 40px 10px 0}
+.breadcrumb ol{display:flex;flex-wrap:wrap;align-items:center;gap:2px;list-style:none;margin:0;padding:0;font-size:11px}
+.breadcrumb li{display:flex;align-items:center;min-width:0}
+.breadcrumb li+li::before{content:'›';color:#7d8288;margin:0 6px}
+.breadcrumb button{color:#c6d8b0;padding:6px 2px;text-decoration:underline;text-underline-offset:3px}
+.breadcrumb span[aria-current]{color:#e8ebee;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.view-list .featured-card{display:none}
+.view-detail .other-heading,.view-detail .result-card,.view-detail .show-more,.view-detail .sort-select,.view-detail .distance-row,.view-detail .legend-row{display:none!important}
+.view-detail .results-header .eyebrow{display:none}
+/* ===== アコーディオン ===== */
+.acc{border-top:1px solid #ffffff12;margin:0}
+.acc>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;padding:13px 2px;font-size:12px;color:#e3e7ea;min-height:44px}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary small{margin-left:auto;font-size:9px;color:#8f9399}
+.acc>summary::after{content:'';width:8px;height:8px;border-right:2px solid #b9bdc2;border-bottom:2px solid #b9bdc2;transform:rotate(45deg);margin:-4px 4px 0 10px;transition:transform .2s}
+.acc>summary:not(:has(small))::after{margin-left:auto}
+.acc[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
+.acc>summary:focus-visible{outline:2px solid #fff;outline-offset:2px;border-radius:6px}
+.acc>:not(summary){padding-bottom:12px}
+.immersive-app .acc.report-section,.immersive-app .acc.prediction-details{border-top:1px solid #ffffff12;padding:0;margin:0}
+.immersive-app .acc .shade-preview{margin:0}
+/* ===== 設定の天気（ラジオ） ===== */
+.weather-radio{display:flex;flex-wrap:wrap;gap:6px;border:0;padding:0;margin:6px 0 10px}
+.weather-radio legend{font-size:12px;margin-bottom:6px;padding:0;color:#55585d}
+.weather-radio span{background:#f3f4ee;border-color:#d7dacb;color:#3a3c40}
+.weather-radio span::before{border-color:#8a8f86}
+.weather-radio input:checked+span{background:#e3edcb;border-color:#9fb879;color:#2f3133}
+.weather-radio input:checked+span::before{border:4px solid #5f7f3e}
+/* ===== 使い方（モーダル） ===== */
+.help-steps{margin:4px 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.6;color:#3a3c40}
+.modal .acc{border-top-color:#e2e4dc}.modal .acc>summary{color:#3a3c40;font-size:13px}.modal .acc>summary::after{border-color:#7a7e84}
+.help-legend{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:13px;color:#3a3c40}
+.help-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--level);margin-right:8px;vertical-align:middle}
+.help-legend .dot-shade{--level:#5f86b4}.help-legend .dot-sun{--level:#f0952c;margin-left:8px}
+.modal-body.help .primary{width:100%;margin-top:14px;min-height:46px;font-size:15px}
+.acc .shade-preview>div:first-child{display:none}
+.view-detail .results-header{display:none}
+@media(max-width:760px){.simple.panel-spots .edge-time{display:none!important}}

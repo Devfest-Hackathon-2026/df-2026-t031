@@ -1,4 +1,5 @@
 import {isShaded} from './shade.ts'
+import {haversineM} from './geo.ts'
 import type {ShadeCheck,ShadeState,ShadeTimeline,Spot} from './types.ts'
 
 /**
@@ -15,7 +16,7 @@ export const MAX_WALK_MIN=20
 export const walkMinutesFor=(distanceM:number)=>Math.max(1,Math.round(distanceM/80))
 
 export interface ArrivalPick{spot:Spot;walkMin:number;arriveMin:number;shade:ShadeState;seat:number;score:number}
-interface RankOptions{departMin:number;preferShade:boolean;shadeAt:(spot:Spot,arriveMin:number)=>ShadeState;seatAt:(spot:Spot,arriveMin:number,shade:ShadeState)=>number}
+interface RankOptions{departMin:number;preferShade:boolean;shadeAt:(spot:Spot,arriveMin:number)=>ShadeState;seatAt:(spot:Spot,arriveMin:number,shade:ShadeState)=>number;maxWalkMin?:number}
 
 /** 日陰（または日なた）の合い具合。夜は日陰の差がないので一定 */
 export function fitOf(shade:ShadeState,preferShade:boolean){if(shade==='night')return .85;return preferShade?(isShaded(shade)?1:.55):(shade==='sun'?1:.7)}
@@ -23,15 +24,15 @@ export function fitOf(shade:ShadeState,preferShade:boolean){if(shade==='night')r
 export function rankArrival(items:{spot:Spot;distanceM:number}[],o:RankOptions):ArrivalPick[]{
  const all=items.map(({spot,distanceM})=>{const walkMin=walkMinutesFor(distanceM*DETOUR),arriveMin=Math.min(1439,o.departMin+walkMin),shade=o.shadeAt(spot,arriveMin),seat=o.seatAt(spot,arriveMin,shade)
   return {spot,walkMin,arriveMin,shade,seat,score:seat*fitOf(shade,o.preferShade)-walkMin*.015}}).sort((a,b)=>b.score-a.score)
- const near=all.filter(p=>p.walkMin<=MAX_WALK_MIN)
+ const near=all.filter(p=>p.walkMin<=(o.maxWalkMin??MAX_WALK_MIN))
  return near.length?near:all
 }
 
 /** 着く時刻に日陰なら、その日陰がいつまで続くか。日なたなら、次に日陰になる時刻 */
-export function shadeSpan(tl:ShadeTimeline,atMin:number):{shaded:boolean;untilMin:number|null;nextShadeMin:number|null}{
+export function shadeSpan(tl:ShadeTimeline,atMin:number):{shaded:boolean;untilMin:number|null;nextShadeMin:number|null;untilDark?:boolean}{
  const i=Math.floor((atMin-tl.startMin)/tl.stepMin),at=(k:number)=>tl.startMin+k*tl.stepMin
  if(i<0||i>=tl.states.length)return {shaded:false,untilMin:null,nextShadeMin:null}
- if(isShaded(tl.states[i])){let k=i;while(k<tl.states.length&&isShaded(tl.states[k]))k++;return {shaded:true,untilMin:at(k),nextShadeMin:null}}
+ if(isShaded(tl.states[i])){let k=i;while(k<tl.states.length&&isShaded(tl.states[k]))k++;return {shaded:true,untilMin:at(k),nextShadeMin:null,...(tl.states[k]==='night'?{untilDark:true}:{})}}
  let k=i;while(k<tl.states.length&&!isShaded(tl.states[k]))k++;return {shaded:false,untilMin:null,nextShadeMin:k<tl.states.length?at(k):null}
 }
 
@@ -44,3 +45,6 @@ export function arrivalReason(p:{shade:ShadeState;preferShade:boolean;seat:numbe
 
 /** 現地での答え合わせ（日陰だった／日なただった）と予測の一致率 */
 export function hitRate(checks:ShadeCheck[]):{total:number;hits:number;ratio:number|null}{const hits=checks.filter(c=>c.observed===c.predicted).length;return {total:checks.length,hits,ratio:checks.length?hits/checks.length:null}}
+
+/** 候補を散らす: 上位の候補から minM 未満の近さにある候補は同じ場所とみなして外す（同じ公園のベンチが並ばないように） */
+export function spreadPicks(picks:ArrivalPick[],minM=80,limit=5):ArrivalPick[]{const out:ArrivalPick[]=[];for(const p of picks){if(out.some(q=>haversineM(q.spot.position,p.spot.position)<minM))continue;out.push(p);if(out.length>=limit)break}return out}

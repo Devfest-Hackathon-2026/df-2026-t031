@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest'
-import {rankArrival,shadeSpan,arrivalReason,hitRate,preferShadeFor,walkMinutesFor,DETOUR} from '../src/domain/arrival.ts'
+import {rankArrival,spreadPicks,shadeSpan,arrivalReason,hitRate,preferShadeFor,walkMinutesFor,DETOUR,type ArrivalPick} from '../src/domain/arrival.ts'
 import {routeShade} from '../src/domain/route.ts'
 import {validateSaved,EMPTY} from '../src/lib/storage.ts'
 import {LocalProjection} from '../src/domain/geo.ts'
@@ -26,4 +26,14 @@ describe('答え合わせと日なたを歩く時間',()=>{
 })
 describe('歩く距離の上限',()=>{
  it('20分より遠い候補は、近くに候補があるときは出さない',()=>{const r=rankArrival([{spot:spot('far'),distanceM:2500},{spot:spot('near'),distanceM:300}],{departMin:840,preferShade:true,shadeAt:(s:Spot):ShadeState=>s.id==='far'?'tree':'sun',seatAt:()=>.9});expect(r.map(p=>p.spot.id)).toEqual(['near']);expect(rankArrival([{spot:spot('far'),distanceM:2500}],{departMin:840,preferShade:true,shadeAt:()=>'tree',seatAt:()=>.9})).toHaveLength(1)})
+})
+describe('歩ける時間の選択',()=>{
+ it('歩ける時間を短くすると、その範囲の候補だけになる',()=>{const items=[{spot:spot('m10'),distanceM:600},{spot:spot('m4'),distanceM:250}];const o={departMin:840,preferShade:true,shadeAt:()=>'tree' as ShadeState,seatAt:()=>.8};expect(rankArrival(items,{...o,maxWalkMin:5}).map(p=>p.spot.id)).toEqual(['m4']);expect(rankArrival(items,{...o,maxWalkMin:20})).toHaveLength(2)})
+})
+describe('候補を散らす',()=>{
+ it('上位から80m未満の候補は外し、違う場所を5件まで並べる',()=>{const at=(id:string,lat:number):ArrivalPick=>({spot:{...spot(id),position:{lat,lng:139.63}},walkMin:5,arriveMin:900,shade:'tree',seat:.8,score:1})
+  const r=spreadPicks([at('a',35.45),at('a2',35.4502),at('b',35.452),at('c',35.454)],80);expect(r.map(p=>p.spot.id)).toEqual(['a','b','c'])})
+})
+describe('日没まで日陰',()=>{
+ it('日陰のまま日が沈むときは untilDark を付ける',()=>{const tl={spotId:'x',dateKey:'2026-11-09',startMin:960,stepMin:15,states:['building','building','night'] as ShadeState[]};expect(shadeSpan(tl,960).untilDark).toBe(true);expect(shadeSpan({...tl,states:['building','sun','night']},960).untilDark).toBeUndefined()})
 })
