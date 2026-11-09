@@ -5,7 +5,7 @@ import {Armchair,Heart,Sun,LocateFixed,Plus,SlidersHorizontal,Info,X,HelpCircle}
  * ハンバーガーメニュー（右から出る引き出し）。地図の表示はラジオボタン、表示の切り替えはチェック、
  * 歩ける時間はプルダウンで選ぶ。Esc か背景のタップで閉じる。
  */
-interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void
+interface Props{open:boolean;onClose:()=>void;favorites:number;mode:'model3d'|'model2d'|string;onMode:(m:'model3d'|'model2d')=>void;showShadow:boolean;onShadow:(v:boolean)=>void;showPath:boolean;onPath:(v:boolean)=>void;maxWalk:number;onMaxWalk:(m:number)=>void;followTime:boolean;onFollowTime:(v:boolean)=>void
  onList:()=>void;onFavorites:()=>void;onSun:()=>void;onLocate:()=>void;onAdd:()=>void;onHelp:()=>void;onSettings:()=>void;onAbout:()=>void}
 export const WALK_OPTIONS=[10,15,20,30]
 export default function MenuDrawer(p:Props){
@@ -31,6 +31,7 @@ export default function MenuDrawer(p:Props){
    </section>
    <section><h3>探し方</h3>
     <label className="drawer-select"><span>歩ける時間</span><select value={p.maxWalk} onChange={e=>p.onMaxWalk(Number(e.target.value))}>{WALK_OPTIONS.map(m=><option key={m} value={m}>{m}分まで</option>)}</select></label>
+    <label className="drawer-check"><input type="checkbox" checked={p.followTime} onChange={e=>p.onFollowTime(e.target.checked)}/><span>時刻を動かしたら候補も選び直す<small>オフのときは影だけ動き、候補の場所は変わりません</small></span></label>
     <button className="drawer-item" onClick={go(p.onLocate)}><LocateFixed size={18}/>現在地から探す</button>
    </section>
    <section><h3>その他</h3>

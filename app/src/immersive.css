@@ -394,3 +394,15 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .immersive-app .best-name{flex-direction:column;align-items:flex-start;gap:3px}
 .immersive-app .best-name strong{white-space:normal;line-height:1.3}
 @media(min-width:761px){.simple .best-pick{width:440px}}
+/* 候補を固定しているときの「この時刻で選び直す」 */
+.repick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:12px;background:#ffd24d14;border:1px solid #ffd24d33;margin:2px 0 0}
+.repick-row span{flex:1;min-width:0;font-size:10px;line-height:1.45;color:#e9dcb8}
+.repick-row button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:10px;color:#3a2a00;background:linear-gradient(180deg,#ffe28a,#f2bd3a);border:1px solid #fff3c499;box-shadow:inset 0 1px 0 #fff8d8,0 3px 8px rgba(0,0,0,.25)}
+.repick-row button:active{transform:translateY(2px)}
+.drawer-check span small{display:block;font-size:11px;color:#a3a7ad;margin-top:2px;line-height:1.4}
+/* 候補を固定しているときの「この時刻で選び直す」 */
+.repick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:12px;background:#ffd24d14;border:1px solid #ffd24d33;margin:2px 0 0}
+.repick-row span{flex:1;min-width:0;font-size:10px;line-height:1.45;color:#e9dcb8}
+.repick-row button{flex-shrink:0;font-size:11px;padding:7px 10px;border-radius:10px;color:#3a2a00;background:linear-gradient(180deg,#ffe28a,#f2bd3a);border:1px solid #fff3c499;box-shadow:inset 0 1px 0 #fff8d8,0 3px 8px rgba(0,0,0,.25)}
+.repick-row button:active{transform:translateY(2px)}
+.drawer-check span small{display:block;font-size:11px;color:#a3a7ad;margin-top:2px;line-height:1.4}
