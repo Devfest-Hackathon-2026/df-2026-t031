@@ -123,3 +123,20 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .immersive-app .result-prob.level-text-high{color:#8fcf9f}.immersive-app .result-prob.level-text-mid{color:#ecc867}.immersive-app .result-prob.level-text-low{color:#ec8f7c}
 @media(max-width:1100px){.seat-legend{display:none}}
 @media(min-width:1600px){.seat-legend{left:392px}}
+/* リキッドグラス（PR #17 のデザインを移植。見た目のみ） */
+.immersive-app{--lg-tint-top:rgba(62,66,72,.56);--lg-tint-bottom:rgba(24,26,30,.74);--lg-blur:blur(32px) saturate(1.8) brightness(.9);--lg-rim:linear-gradient(140deg,rgba(255,255,255,.85) 0%,rgba(255,255,255,.28) 18%,rgba(255,255,255,.04) 42%,rgba(255,255,255,0) 58%,rgba(255,255,255,.14) 78%,rgba(255,255,255,.55) 100%);--lg-spec:radial-gradient(120% 70% at 12% -10%,rgba(255,255,255,.34),rgba(255,255,255,.08) 38%,rgba(255,255,255,0) 60%);--lg-drop:0 1px 1px rgba(0,0,0,.12),0 8px 18px rgba(10,12,16,.22),0 26px 48px rgba(10,12,16,.24)}
+.immersive-app .glass-panel,.immersive-app .results-panel{background:linear-gradient(165deg,var(--lg-tint-top),var(--lg-tint-bottom));border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.45),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 22px rgba(255,255,255,.06),var(--lg-drop);backdrop-filter:var(--lg-blur);-webkit-backdrop-filter:var(--lg-blur);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.immersive-app .glass-panel::before,.immersive-app .results-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:var(--lg-spec);z-index:0}
+.immersive-app .glass-panel::after,.immersive-app .results-panel::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1.25px;background:var(--lg-rim);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);pointer-events:none;z-index:2}
+.immersive-app .glass-panel>*{position:relative;z-index:1}
+@media(min-width:761px){.immersive-app .results-panel>*{position:relative;z-index:1}}
+.immersive-app .glass-panel>.place-menu{position:absolute;z-index:30}
+.immersive-app .route-actions button{position:relative;background:linear-gradient(170deg,rgba(255,255,255,.17),rgba(255,255,255,.05)),rgba(36,38,42,.35);border:0;box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 -1px 1px rgba(255,255,255,.12),inset 0 0 10px rgba(255,255,255,.06),0 4px 10px rgba(0,0,0,.2);backdrop-filter:blur(12px) saturate(1.6);-webkit-backdrop-filter:blur(12px) saturate(1.6)}
+.immersive-app .route-button.primary{background:linear-gradient(170deg,rgba(234,245,208,.95),rgba(184,208,136,.86));color:#202814;text-shadow:0 1px 0 rgba(255,255,255,.45);box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 3px rgba(255,255,255,.35),inset 0 0 14px rgba(255,255,255,.25),0 6px 16px rgba(60,80,30,.35)}
+.immersive-app .route-actions button:active,.immersive-app .route-button.primary:active{transform:translateY(1.5px) scale(.985)}
+.immersive-app .modal{background:linear-gradient(165deg,rgba(255,255,255,.9),rgba(242,244,236,.84));box-shadow:inset 0 1px 1px #fff,inset 0 -1px 1px rgba(255,255,255,.6),inset 0 0 30px rgba(255,255,255,.4),0 30px 70px rgba(15,17,20,.38);backdrop-filter:blur(32px) saturate(1.9);-webkit-backdrop-filter:blur(32px) saturate(1.9);border:1px solid rgba(255,255,255,.75)}
+.immersive-app .modal .primary{background:linear-gradient(180deg,#4a4e53,#2f3236);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 14px rgba(0,0,0,.25)}
+.edge-pill{background:linear-gradient(170deg,rgba(255,255,255,.97),rgba(242,244,238,.9));box-shadow:inset 0 1px 1px #fff,inset 0 -2px 4px rgba(0,0,0,.06),0 6px 16px rgba(20,22,25,.25);backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6)}
+/* スマホ幅の一覧はボトムシートの中に置くので、パネル側のガラスは重ねない */
+@media(max-width:760px){.immersive-app .bottom-sheet .results-panel::before,.immersive-app .bottom-sheet .results-panel::after{display:none}}
+@media(prefers-reduced-transparency:reduce){.immersive-app{--lg-tint-top:rgba(50,53,58,.94);--lg-tint-bottom:rgba(30,32,36,.96)}}
