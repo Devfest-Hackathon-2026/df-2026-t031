@@ -1,4 +1,5 @@
 import type {WeatherHour,WeatherForecast,WeatherCondition} from '../domain/types.ts'
+import {apiUrl} from './api.ts'
 import {jstDate,jstParts} from '../domain/time.ts'
 export function demoWeather(day:string,minutes:number,temp=24,condition:WeatherCondition='clear'):WeatherHour{return {time:jstDate(day,minutes).toISOString(),temperatureC:temp,condition,humidity:60,precipitationProbability:condition==='rain'?90:10,solarRadiation:null,windSpeed:2}}
 export function weatherAt(forecast:WeatherForecast|null,time:Date):WeatherHour|null{const target=time.getTime();return forecast?.hours.find(h=>target>=Date.parse(h.time)&&target<Date.parse(h.time)+3600000)??null}
@@ -12,5 +13,5 @@ export async function openMeteo():Promise<WeatherForecast>{
  if(!hours.length)throw Error('有効な天気データがありません。')
  return {hours,sourceLabel:'Open-Meteo',isDemo:false,fetchedAt:new Date().toISOString()}
 }
-export async function googleWeather():Promise<WeatherForecast>{const r=await fetch('/api/weather',{signal:AbortSignal.timeout(20000)});if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Weather APIサーバーは未接続です。');const d=await r.json();if(!r.ok)throw Error(d.error||'天気の取得に失敗しました。');return d}
+export async function googleWeather():Promise<WeatherForecast>{const r=await fetch(apiUrl('/api/weather'),{signal:AbortSignal.timeout(20000)});if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Weather APIサーバーは未接続です。');const d=await r.json();if(!r.ok)throw Error(d.error||'天気の取得に失敗しました。');return d}
 export const WEATHER_LABEL:Record<WeatherCondition,string>={clear:'晴れ','partly-cloudy':'晴れ時々くもり',cloudy:'くもり',fog:'霧',rain:'雨','heavy-rain':'強い雨',snow:'雪',unknown:'不明'}

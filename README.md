@@ -13,9 +13,11 @@ DevFest GDGoC Japan Hackathon 2026 / チーム **epoku**（エントリー番号
 - **デモ対象エリア**: みなとみらい／横浜（「多分」付き。会場周辺を追加する案もあり）
 - **最終形**: モバイルアプリ。当日は **APK（Android）＋ Web アプリ（iPhone の人向け）** で見せる
 
-**MVP: [docs/mvp.md](docs/mvp.md)** ／ 詳細: [docs/idea.md](docs/idea.md) ／ 技術: [docs/architecture.md](docs/architecture.md) ／ ピッチ: [docs/pitch.md](docs/pitch.md) ／ 出典: [docs/sources.md](docs/sources.md)
+**MVP: [docs/mvp.md](docs/mvp.md)** ／ **Rest Care MVP: [docs/rest-care-mvp.md](docs/rest-care-mvp.md)** ／ 詳細: [docs/idea.md](docs/idea.md) ／ 技術: [docs/architecture.md](docs/architecture.md) ／ ピッチ: [docs/pitch.md](docs/pitch.md) ／ 出典: [docs/sources.md](docs/sources.md)
 
 ## 動くアプリから開発を始める（2026-11-05）
+
+**v0.3の改善:** スマホの下部シート、PLATEAU横浜2024 LOD2の142棟、空席率の色分け、絞り込み、アプリ内の参考経路、Androidの戻る操作。[最新の検証・残タスク](app/docs/verification-mobile.md)を参照してください。Unreal Engineは使用していません。以下のv0.2の説明が開発の起点です。
 
 `app/` に epoku v0.2 の実装を追加しました。**APIキーなしで起動できます。** 全画面3Dの街並み、太陽軌道、時刻に連動する影、休憩スポット検索、端末内の投稿・お気に入りが動きます。
 
