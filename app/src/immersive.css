@@ -314,3 +314,83 @@ body{overflow:hidden;background:#d7d8da}.immersive-app{width:100%;height:100dvh;
 .acc .shade-preview>div:first-child{display:none}
 .view-detail .results-header{display:none}
 @media(max-width:760px){.simple.panel-spots .edge-time{display:none!important}}
+/* ===================== すりガラス＋少し立体（地図以外の UI） ===================== */
+.immersive-app{--g-top:rgba(78,82,88,.58);--g-bottom:rgba(30,33,36,.74);--g-line:rgba(255,255,255,.17);--g-hi:rgba(255,255,255,.3);--g-lo:rgba(0,0,0,.38);--g-drop:0 1px 2px rgba(10,12,14,.2),0 16px 36px rgba(18,20,23,.34)}
+.immersive-app .glass-panel,.immersive-app.simple .brand,.immersive-app.simple .header-actions,.immersive-app .results-panel{background:linear-gradient(160deg,var(--g-top),var(--g-bottom));border:1px solid var(--g-line);box-shadow:inset 0 1px 0 var(--g-hi),inset 0 -1px 0 var(--g-lo),var(--g-drop);backdrop-filter:blur(26px) saturate(1.6);-webkit-backdrop-filter:blur(26px) saturate(1.6)}
+.immersive-app .glass-panel::before,.immersive-app.simple .brand::before,.immersive-app .results-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.17),rgba(255,255,255,0) 36%,rgba(255,255,255,0) 70%,rgba(255,255,255,.05));z-index:0}
+.immersive-app.simple .brand{position:relative}
+.immersive-app .glass-panel>*,.immersive-app .results-panel>*{position:relative;z-index:1}
+.immersive-app .best-pick{position:absolute}
+.immersive-app .results-panel>.results-close{position:absolute}
+/* 立体のボタン: 上に光、下に影。押すと沈む */
+.immersive-app .best-actions button,.best-preset,.best-arrow,.immersive-app .route-actions button,.check-buttons button,.arrive-feedback button,.care-chip,.drawer-radio span,.route-radio span,.immersive-app .results-close,.simple .menu-button{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.22);transition:transform .12s ease,box-shadow .12s ease,background .2s}
+.immersive-app .best-actions button.primary,.immersive-app .route-button.primary{background:linear-gradient(180deg,#f1f8dc,#c7d99f);color:#283019;border:1px solid #ffffff99;box-shadow:inset 0 1px 0 #ffffff,inset 0 -2px 0 rgba(70,92,40,.35),0 6px 14px rgba(0,0,0,.28)}
+.immersive-app .best-actions button:active,.best-preset:active,.best-arrow:active,.check-buttons button:active,.arrive-feedback button:active,.care-chip:active,.immersive-app .route-actions button:active,.immersive-app .route-button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.2),0 1px 2px rgba(0,0,0,.2)}
+.best-preset.summer{background:linear-gradient(180deg,rgba(255,206,110,.32),rgba(240,149,44,.12))}
+.best-chip,.care-match{box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 2px rgba(0,0,0,.15)}
+.best-slider{box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
+/* カルーセル: 隣のカードが少し見え、横のカードは奥に傾く */
+.immersive-app .best-track{perspective:1000px;padding:4px 7% 8px;gap:10px;margin:0 -16px;scroll-padding:0 7%}
+.immersive-app .best-slide{flex:0 0 86%;padding:12px 13px 11px;border-radius:17px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 20px rgba(0,0,0,.24);transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .38s}
+.immersive-app .best-slide.is-prev{transform:rotateY(14deg) scale(.9);opacity:.55;transform-origin:right center}
+.immersive-app .best-slide.is-next{transform:rotateY(-14deg) scale(.9);opacity:.55;transform-origin:left center}
+@media(max-width:760px){.immersive-app .best-track{margin:0 -13px}}
+@media(prefers-reduced-motion:reduce){.immersive-app .best-slide{transition:none}.immersive-app .best-slide.is-prev,.immersive-app .best-slide.is-next{transform:none}}
+/* モーダルは明るいすりガラス */
+.immersive-app .modal{background:linear-gradient(170deg,rgba(255,255,252,.9),rgba(244,245,238,.86));border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 #ffffff,0 2px 4px rgba(0,0,0,.08),0 30px 70px rgba(15,17,20,.4);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4)}
+.immersive-app .modal .primary{background:linear-gradient(180deg,#4a4e53,#2f3236);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 14px rgba(0,0,0,.25)}
+/* ===================== いまの状態・休憩のきっかけ・希望・1タップの報告・情報源 ===================== */
+.care-chip{display:flex;align-items:center;gap:7px;width:100%;padding:8px 11px;border-radius:13px;color:#e8ebe4;font-size:11px;text-align:left;margin-bottom:9px}
+.care-chip>svg:first-child{color:#f1a6a6;flex-shrink:0}
+.care-chip span{color:#a9adb2;flex-shrink:0}
+.care-chip b{font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.care-chip>svg:last-child{color:#c9cdd1;flex-shrink:0}
+.care-matches{display:flex;flex-wrap:wrap;gap:5px}
+.care-match{font-size:10px;padding:3px 8px;border-radius:10px}
+.care-match.ok{background:#4f9d6933;color:#bfe3c8}
+.care-match.ng{background:#ffffff0d;color:#8f9399}
+.arrive-feedback{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border-radius:13px;background:#ffffff0a;border:1px solid #ffffff12}
+.arrive-feedback>span{font-size:10px;color:#c3c7cb}
+.arrive-feedback>div{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.arrive-feedback button{font-size:11px;padding:8px 2px;border-radius:10px;color:#e3e7ea;min-height:38px}
+@media(max-width:400px){.arrive-feedback>div{grid-template-columns:repeat(2,1fr)}}
+.rest-nudge{position:absolute;z-index:25;top:92px;left:24px;width:min(400px,calc(100vw - 48px));display:flex;align-items:flex-start;gap:10px;padding:12px 12px 12px 14px;border-radius:18px;color:#f1f3ee}
+.rest-nudge>svg{flex-shrink:0;margin-top:2px;color:#f1a6a6}
+.rest-nudge p{margin:0;font-size:12px;line-height:1.6;flex:1;min-width:0}
+.rest-nudge small{display:block;font-size:9px;color:#a9adb2;margin-top:3px}
+.rest-nudge>div{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.rest-nudge>div button:first-child{font-size:11px;padding:8px 10px;border-radius:11px;white-space:nowrap;background:linear-gradient(180deg,#f1f8dc,#c7d99f);color:#283019;box-shadow:inset 0 1px 0 #fff,0 4px 10px rgba(0,0,0,.25)}
+.rest-nudge>div button:last-child{color:#c9cdd1;padding:4px}
+.immersive-app .rest-nudge.nudge-warn{--g-top:rgba(120,72,40,.6);--g-bottom:rgba(58,34,22,.78)}
+@media(max-width:760px){.rest-nudge{top:64px;left:10px;right:10px;width:auto}.simple.panel-spots .rest-nudge{display:none}}
+.source-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;font-size:11px;color:#c9cdd1;line-height:1.55}
+.source-list b{display:inline-block;min-width:6.5em;color:#e6e9ec;font-weight:500}
+/* いまの状態の入力（モーダル） */
+.care-form{display:flex;flex-direction:column;gap:12px}
+.care-radio,.care-checks{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:7px}
+.care-radio legend,.care-checks legend{font-size:12px;color:#55585d;margin-bottom:6px;padding:0;width:100%}
+.care-radio label,.care-checks label{position:relative;cursor:pointer}
+.care-radio input,.care-checks input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.care-radio span,.care-checks span{display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:13px;font-size:14px;background:linear-gradient(180deg,#ffffff,#eef0e7);border:1px solid #d7dacb;color:#3a3c40;box-shadow:inset 0 1px 0 #fff,0 2px 4px rgba(0,0,0,.08);min-height:44px}
+.care-radio span::before{content:'';width:15px;height:15px;border-radius:50%;border:2px solid #8a8f86;box-sizing:border-box}
+.care-checks span::before{content:'';width:15px;height:15px;border-radius:4px;border:2px solid #8a8f86;box-sizing:border-box}
+.care-radio input:checked+span,.care-checks input:checked+span{background:linear-gradient(180deg,#eef6dc,#d7e8b4);border-color:#9fb879;color:#2f3133}
+.care-radio input:checked+span::before{border:5px solid #5f7f3e}
+.care-checks input:checked+span::before{background:#5f7f3e;border-color:#5f7f3e;box-shadow:inset 0 0 0 2px #eef6dc}
+.care-radio input:focus-visible+span,.care-checks input:focus-visible+span{outline:2px solid #2f6b4f;outline-offset:2px}
+.care-select{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;color:#3a3c40}
+.care-select select{font-size:14px;padding:9px 12px;border-radius:11px;border:1px solid #d7dacb;background:#fff;color:#2f3133}
+.care-form .primary{min-height:46px;font-size:15px}
+@media(max-width:760px){
+.simple .best-pick{padding:10px 12px 9px;gap:7px}
+.care-chip{padding:6px 10px;margin-bottom:4px}
+.best-time{padding-bottom:7px}
+.immersive-app .best-slide{padding:10px 11px 9px;gap:6px}
+.best-chip{font-size:9.5px;padding:4px 7px}
+.best-reason{font-size:10.5px}
+.best-actions button{padding:8px 10px}
+.immersive-app .best-track{padding-bottom:6px}
+}
+.immersive-app .best-name{flex-direction:column;align-items:flex-start;gap:3px}
+.immersive-app .best-name strong{white-space:normal;line-height:1.3}
+@media(min-width:761px){.simple .best-pick{width:440px}}
