@@ -8,3 +8,5 @@ export const DEMO_USER_LOCATION:LatLng={lat:35.4509,lng:139.6311}
 export const AREA_BOUNDS={south:35.4440,west:139.6180,north:35.4700,east:139.6460}
 export const AREA_NAME='横浜・みなとみらい'
 export const inArea=(p:LatLng,b=AREA_BOUNDS)=>p.lat>=b.south&&p.lat<=b.north&&p.lng>=b.west&&p.lng<=b.east
+/** 投稿できる範囲（デモエリアの少し外まで） */
+export const inBounds=(p:{lat:number;lng:number})=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&inArea(p,{south:AREA_BOUNDS.south-.01,west:AREA_BOUNDS.west-.01,north:AREA_BOUNDS.north+.01,east:AREA_BOUNDS.east+.01})

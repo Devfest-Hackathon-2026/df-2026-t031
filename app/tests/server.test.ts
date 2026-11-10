@@ -1,4 +1,14 @@
+// ローカル API のテスト。2026-11-10 に書き直し（期間中に足したテストはそのまま）
+import {it,expect,afterEach} from 'vitest'
+import type {AddressInfo} from 'node:net'
+import {createApiServer} from '../server/index.ts'
+const servers:ReturnType<typeof createApiServer>[]=[]
+afterEach(()=>{for(const s of servers.splice(0))s.close()})
+async function start(){const s=createApiServer();servers.push(s);await new Promise<void>(r=>s.listen(0,'127.0.0.1',()=>r()));return `http://127.0.0.1:${(s.address() as AddressInfo).port}`}
 it('秘密鍵を返さずAPI設定の有無を確認できる',async()=>{const url=await start();const r=await fetch(url+'/api/health');expect(r.status).toBe(200);const d=await r.json();expect(typeof d.gemini).toBe('boolean');expect(Object.keys(d).sort()).toEqual(['gemini','geminiProvider','weather'])})
+it('ほかのホスト名からの呼び出しを断る',async()=>{const url=await start();const r=await fetch(url+'/api/health',{headers:{Origin:'https://evil.example'}});expect(r.status).toBe(403)})
+it('Gemini未接続なら説明は503で、形式が不正なら400',async()=>{const prev={k:process.env.GEMINI_API_KEY,p:process.env.GOOGLE_CLOUD_PROJECT};delete process.env.GEMINI_API_KEY;delete process.env.GOOGLE_CLOUD_PROJECT;try{const url=await start();const r=await fetch(url+'/api/explain',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'ベンチ',probability:.5,reasons:['平日']})});expect(r.status).toBe(503)}finally{if(prev.k!==undefined)process.env.GEMINI_API_KEY=prev.k;if(prev.p!==undefined)process.env.GOOGLE_CLOUD_PROJECT=prev.p}
+ await withEnv({GEMINI_API_KEY:'x'},async()=>{const url=await start();const r=await fetch(url+'/api/explain',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:1})});expect(r.status).toBe(400)})})
 import {vi} from 'vitest'
 import {resetGoogleSessions,HEALTH_SCOPES} from '../server/googleHealth.ts'
 import {allowlistPayload,applyDemo,DEFAULT_NEED} from '../src/domain/restNeed.ts'
@@ -45,3 +55,4 @@ it('休憩の一言はallowlistの値だけをGeminiへ送り、同意なしで�
  const b=await (await post(true)).json();expect(b.replaced).toBe(true);expect(b.text).not.toContain('熱中症の危険')
  const data2=JSON.parse(JSON.parse(sent[1]).contents[0].parts[0].text);expect(data2.steps).toBe(8600);expect(data2.heart).toBe('slightlyHigh');expect(sent[1]).not.toMatch(/example\.com|35\.4567/)
 }))
+

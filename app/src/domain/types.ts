@@ -90,10 +90,13 @@ export interface WeatherNow {
   condition: WeatherCondition
   humidity: number | null
   precipitationProbability: number | null
-  windSpeedMs: number | null
+  /** 風速（m/s） */
+  windSpeed: number | null
+  /** 日射（W/m²）。分からなければ null */
+  solarRadiation: number | null
 }
 export interface WeatherHour extends WeatherNow {time: string}
-export interface WeatherForecast {source: 'open-meteo' | 'google' | 'demo'; fetchedAt: string; hours: WeatherHour[]}
+export interface WeatherForecast {source: 'open-meteo' | 'google' | 'demo'; sourceLabel: string; fetchedAt: string; hours: WeatherHour[]}
 
 /** 混みやすくなる催し（花火・イベントなど）。days が無ければ毎日 */
 export interface AreaEvent {id: string; name: string; position: LatLng; radiusM: number; startMin: number; endMin: number; multiplier: number; days?: string[]}
