@@ -52,3 +52,7 @@ printf %s "$GEMINI_API_KEY" | gcloud secrets create GEMINI_API_KEY --data-file=-
 - 確からしさ（高／中／低と 80% の幅）は、仮定の多さと投稿量から出す目安で、実測で校正した値ではありません。
 - 共有投稿（Firestore）には投稿時の入力を送らないため、他の人の投稿は直近の反映にだけ使われ、過去分の補正には使われません。
 - 現地観測で正解データを集め、補正の効果と幅の校正を確かめる段階が残っています。
+
+## Vercel で公開する
+
+`vercel.json` のとおり、`npm run build` のあと `node scripts/vercel-output.mjs` が画面（`dist`）と API 関数（`server/vercel.ts` を 1 本に束ねたもの）を `.vercel/output` に書き出します。`/api/*` は関数へ、それ以外は画面へ回します。環境変数は Vercel のプロジェクト設定に入れます（`PUBLIC_ORIGIN` に公開 URL、秘密のキーは Sensitive に）。
