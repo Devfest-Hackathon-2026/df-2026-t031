@@ -1,20 +1,29 @@
+# 2026-11-10 期間内に書き直し。
+
+# 依存とビルド結果
 node_modules/
 dist/
+*.tsbuildinfo
+coverage/
+
+# 秘密の値（見本の .env.example だけは残す）
 .env
 .env.*
 !.env.example
-*.tsbuildinfo
+
+# Android のビルド生成物と、端末ごとの設定・署名鍵
 android/.gradle/
-android/local.properties
-android/app/build/
 android/build/
+android/app/build/
 android/capacitor-cordova-android-plugins/build/
-test-results/
-.openai/
+android/local.properties
 *.apk
 *.aab
 *.jks
 *.keystore
-coverage/
+
+# テスト・ツールの出力
+test-results/
 playwright-report/
+.openai/
 .vercel/
