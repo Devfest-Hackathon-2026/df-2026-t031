@@ -8,7 +8,7 @@ const tri=(v:unknown):v is 'yes'|'no'|'unknown'=>v==='yes'||v==='no'||v==='unkno
 const optionalText=(v:unknown,max:number)=>v===undefined||typeof v==='string'&&v.length<=max
 const KEY='epoku:v1'
 // 投稿時の予測の入力（features）。古いバックアップにはないので任意。形が崩れていれば捨てる（投稿自体は残す）
-const SHADES=['sun','building','tree','roof','night'],CONDITIONS=['clear','partly-cloudy','cloudy','fog','rain','heavy-rain','snow','unknown'],num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi,numOrNull=(v:unknown,lo:number,hi:number)=>v===null||num(v,lo,hi)
+const SHADES=['sun','building','tree','roof','night','cloud'],CONDITIONS=['clear','partly-cloudy','cloudy','fog','rain','heavy-rain','snow','unknown'],num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi,numOrNull=(v:unknown,lo:number,hi:number)=>v===null||num(v,lo,hi)
 export function validFeatures(f:any):SeatFeatureSnapshot|undefined{if(!f||typeof f!=='object'||!num(f.hour,0,24)||!['weekday','weekend','holiday'].includes(f.dayType)||!numOrNull(f.temperatureC,-50,60)||!numOrNull(f.wbgt,-20,50)||!(f.condition===null||CONDITIONS.includes(f.condition))||!SHADES.includes(f.shade)||typeof f.roof!=='boolean'||!numOrNull(f.aiProbability,0,1))return undefined
  return {hour:f.hour,dayType:f.dayType,temperatureC:f.temperatureC,wbgt:f.wbgt,condition:f.condition,shade:f.shade,roof:f.roof,aiProbability:f.aiProbability}}
 export function validateSaved(v:unknown):SavedData{

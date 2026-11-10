@@ -48,7 +48,7 @@ export function wishReason(w:RestWish,it:RestItem):RestReason{
  const s=it.spot,src=sourceStatus(s),label=WISH_LABEL[w],shaded=isShaded(it.shade)
  switch(w){
   case 'cool':return s.kind==='indoor'||s.cooling==='yes'?{key:w,label:'冷房・屋内あり',status:s.verifiedAt?'confirmed':src,ok:true}:s.cooling==='no'?{key:w,label:'冷房なし',status:src,ok:false}:shaded?{key:w,label:'日陰で涼しめ（冷房は未確認）',status:'estimated',ok:true}:{key:w,label:'涼しい場所かは未確認',status:'unknown',ok:null}
-  case 'shade':return it.shade==='night'?{key:w,label:'日没後',status:'estimated',ok:true}:{key:w,label:shaded?'着く時は日陰':'着く時は日なた',status:'estimated',ok:shaded}
+  case 'shade':return it.shade==='night'?{key:w,label:'日没後',status:'estimated',ok:true}:{key:w,label:it.shade==='cloud'?'くもりで日差しなし':shaded?'着く時は日陰':'着く時は日なた',status:'estimated',ok:shaded}
   case 'roof':return s.roof==='yes'?{key:w,label:'屋根あり',status:s.roofSource==='inside-building'||s.roofSource==='roof-polygon'?'estimated':src,ok:true}:s.roof==='no'?{key:w,label:'屋根なし',status:src,ok:false}:{key:w,label:'屋根は未確認',status:'unknown',ok:null}
   case 'seat':return {key:w,label:`座れる見込み ${Math.round(it.seat*100)}%`,status:'estimated',ok:it.seat>=.5}
   case 'backrest':return s.backrest==='yes'?{key:w,label:'背もたれあり',status:src,ok:true}:s.backrest==='no'?{key:w,label:'背もたれなし',status:src,ok:false}:{key:w,label:'背もたれは未確認',status:'unknown',ok:null}

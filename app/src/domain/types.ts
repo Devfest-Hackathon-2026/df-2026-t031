@@ -172,7 +172,8 @@ export interface SunPosition {
 }
 
 /** sun=日なた / building=建物の影 / tree=木陰（推定） / roof=屋根の下 / night=日が出ていない */
-export type ShadeState = 'sun' | 'building' | 'tree' | 'roof' | 'night'
+/** cloud = くもり・雨などで直射日光がない（建物の影に関係なく、街全体が日陰になる） */
+export type ShadeState = 'sun' | 'building' | 'tree' | 'roof' | 'night' | 'cloud'
 
 export interface ShadeTimeline {
   spotId: string

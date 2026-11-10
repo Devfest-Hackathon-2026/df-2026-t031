@@ -2,7 +2,7 @@ import { distanceToSegment, LocalProjection, pointInRing, segmentHitsRing } from
 import { treeCrownBase } from './osm.ts'
 import { sunPosition } from './sun.ts'
 import { jstDate } from './time.ts'
-import type { Building, LatLng, ShadeState, ShadeTimeline, SunPosition, Tree, XY } from './types.ts'
+import type { Building, LatLng, ShadeState, ShadeTimeline, SunPosition, Tree, WeatherCondition, XY } from './types.ts'
 
 /**
  * 日陰の計算（方式 A：建物の高さ + 太陽の位置）。
@@ -199,7 +199,12 @@ function withBox(o: Omit<Obstacle, 'minX' | 'minY' | 'maxX' | 'maxY'>, ring: XY[
 
 // ───────── 日陰の時間帯の要約 ─────────
 
-export const isShaded = (s: ShadeState) => s === 'building' || s === 'tree' || s === 'roof'
+export const isShaded = (s: ShadeState) => s === 'building' || s === 'tree' || s === 'roof' || s === 'cloud'
+
+/** 直射日光が届かない天気（くもり・霧・雨・雪）。晴れ時々くもりは日が差すので含めない */
+export const OVERCAST: ReadonlySet<WeatherCondition> = new Set<WeatherCondition>(['cloudy', 'fog', 'rain', 'heavy-rain', 'snow'])
+/** 建物と太陽で求めた状態に天気を重ねる。くもりの日は影がなく街全体が日陰なので、屋外は日なたも建物の影も「くもり（日差しなし）」にする（屋根の下と夜はそのまま） */
+export const weatherShade = (s: ShadeState, condition: WeatherCondition | null | undefined): ShadeState => (s === 'sun' || s === 'building' || s === 'tree') && condition && OVERCAST.has(condition) ? 'cloud' : s
 
 export interface ShadeWindow {
   startMin: number
@@ -259,6 +264,7 @@ export const SHADE_LABEL: Record<ShadeState, string> = {
   tree: '木陰（推定）',
   roof: '屋根の下',
   night: '日差しなし',
+  cloud: 'くもり（日差しなし）',
 }
 
 export interface ShadeCoverage {

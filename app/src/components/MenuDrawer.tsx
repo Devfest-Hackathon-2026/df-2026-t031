@@ -23,10 +23,6 @@ export default function MenuDrawer(p:Props){
     <button className="drawer-item" onClick={go(p.onSun)}><Sun size={18}/>太陽と日の出・日の入り</button>
    </section>
    <section><h3>地図</h3>
-    <fieldset className="drawer-radio"><legend className="sr-only">地図の表示</legend>
-     <label><input type="radio" name="map-mode" checked={p.mode==='model3d'} onChange={()=>p.onMode('model3d')}/><span>3D（立体）</span></label>
-     <label><input type="radio" name="map-mode" checked={p.mode==='model2d'} onChange={()=>p.onMode('model2d')}/><span>2D（平面）</span></label>
-    </fieldset>
     <label className="drawer-check"><input type="checkbox" checked={p.showShadow} onChange={e=>p.onShadow(e.target.checked)}/><span>建物の影を表示</span></label>
     <label className="drawer-check"><input type="checkbox" checked={p.showPath} onChange={e=>p.onPath(e.target.checked)}/><span>太陽の通り道を表示</span></label>
     {p.onShowLabels?<label className="drawer-check"><input type="checkbox" checked={!!p.showLabels} onChange={e=>p.onShowLabels!(e.target.checked)}/><span>建物の名前を表示<small>ランドマークタワーや赤レンガ倉庫などに名前の札を出します</small></span></label>:null}

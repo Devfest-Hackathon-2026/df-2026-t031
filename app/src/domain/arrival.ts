@@ -38,7 +38,7 @@ export function shadeSpan(tl:ShadeTimeline,atMin:number):{shaded:boolean;untilMi
 
 /** カードに出す理由の一言（APIなしで作る。Gemini は詳細の中で任意） */
 export function arrivalReason(p:{shade:ShadeState;preferShade:boolean;seat:number;walkMin:number}){
- const shade=p.shade==='building'?'着くころは建物の影':p.shade==='tree'?'着くころは木陰':p.shade==='roof'?'屋根の下':p.shade==='night'?'日没後':p.preferShade?'着くころは日なた（近くに日陰の候補が少ない）':'着くころは日なたで暖かい'
+ const shade=p.shade==='building'?'着くころは建物の影':p.shade==='tree'?'着くころは木陰':p.shade==='roof'?'屋根の下':p.shade==='night'?'日没後':p.shade==='cloud'?'くもりで日差しなし':p.preferShade?'着くころは日なた（近くに日陰の候補が少ない）':'着くころは日なたで暖かい'
  const seat=p.seat>=.7?'空いている見込み':p.seat>=.4?'座れるかは五分五分':'混んでいる見込み'
  return `${shade}・${seat}・徒歩${p.walkMin}分`
 }
