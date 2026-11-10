@@ -1,41 +1,11 @@
-import { getPosition, getTimes } from 'suncalc'
-import { jstDate } from './time.ts'
-import type { LatLng, SunPosition } from './types.ts'
-
-// 2026-11-10 期間内に書き直し。
-// suncalc v2 の返り値は「度」「北を 0 として時計回り」の方位（v1 のラジアン・南起点とは違う）。
-
-const normalizeDeg = (deg: number) => ((deg % 360) + 360) % 360
-
-export function sunPosition(time: Date, at: LatLng): SunPosition {
-  const { altitude, azimuth } = getPosition(time, at.lat, at.lng)
-  return { altitude, azimuth: normalizeDeg(azimuth) }
-}
-
-export interface SunTimesJst {
-  /** 日本時間 0:00 からの分。極夜・白夜などで起きない日は null */
-  sunriseMin: number | null
-  sunsetMin: number | null
-  solarNoonMin: number
-}
-
-export function sunTimes(dateKey: string, at: LatLng): SunTimesJst {
-  const midnight = jstDate(dateKey, 0).getTime()
-  const noon = jstDate(dateKey, 720)
-  const times = getTimes(noon, at.lat, at.lng, 0, 540)
-  const sinceMidnight = (d: Date | null | undefined): number | null =>
-    d ? Math.round((d.getTime() - midnight) / 60_000) : null
-  return {
-    sunriseMin: sinceMidnight(times.sunrise),
-    sunsetMin: sinceMidnight(times.sunset),
-    solarNoonMin: sinceMidnight(times.solarNoon) ?? 720,
-  }
-}
-
-const COMPASS_8 = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'] as const
-
-/** 方位角（度）を 8 方位の言葉にする */
-export function directionLabel(azimuth: number): string {
-  const sector = Math.floor((normalizeDeg(azimuth) + 22.5) / 45) % 8
-  return COMPASS_8[sector]
-}
+// 太陽の位置（SunCalc v2）。SunCalc v2 は度で返す: 方位は北を 0° とした時計回り、高度は大気の屈折を補正した見かけの高度
+import {getPosition,getTimes} from 'suncalc'
+import {jstDate} from './time.ts'
+import type {LatLng,SunPosition} from './types.ts'
+export function sunPosition(t:Date,at:LatLng):SunPosition{const p=getPosition(t,at.lat,at.lng);return {altitude:p.altitude,azimuth:((p.azimuth%360)+360)%360}}
+/** 太陽が地平線より上か（大気の屈折を見込んで -0.833° で判定） */
+export const isDaylight=(s:SunPosition)=>s.altitude>-.833
+/** 方位（度）を 16 方位の日本語に */
+export function directionLabel(azimuth:number){const names=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];return names[Math.round((((azimuth%360)+360)%360)/22.5)%16]}
+/** その日の日の出・南中・日の入り（JST 0:00 からの分。起きない日は null） */
+export function sunTimes(day:string,at:LatLng){const base=jstDate(day,0).getTime(),t=getTimes(new Date(base+12*3600_000),at.lat,at.lng),m=(d:Date|null)=>d&&Number.isFinite(d.getTime())?Math.round((d.getTime()-base)/60000):null;return {sunriseMin:m(t.sunrise),noonMin:m(t.solarNoon),sunsetMin:m(t.sunset)}}

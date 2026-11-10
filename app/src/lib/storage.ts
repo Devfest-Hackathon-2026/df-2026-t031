@@ -1,179 +1,40 @@
-// 2026-11-10 期間内に書き直し。
-// この端末の localStorage に置くデータ（保存した地点・投稿・自分で登録した地点・通報・答え合わせ）。
-// 読み込み・復元のたびに形を確かめ、知らない項目は捨ててから使う。
-
-import type { SeatFeatureSnapshot, SeatReport, ShadeCheck, Spot, SpotFlag } from '../domain/types.ts'
-import { inBounds } from '../domain/area.ts'
-
-export interface SavedData {
-  version: 1
-  favorites: string[]
-  reports: SeatReport[]
-  spots: Spot[]
-  flags: SpotFlag[]
-  checks: ShadeCheck[]
+import type {SeatFeatureSnapshot,SeatReport,ShadeCheck,Spot,SpotFlag} from '../domain/types.ts'
+import {inBounds} from '../domain/area.ts'
+// 端末内の保存（お気に入り・投稿・追加した地点・通報・答え合わせ）。2026-11-10 に書き直し（期間中に足した検証はそのまま）
+export interface SavedData {version:1;favorites:string[];reports:SeatReport[];spots:Spot[];flags:SpotFlag[];checks:ShadeCheck[]}
+export const EMPTY:SavedData={version:1,favorites:[],reports:[],spots:[],flags:[],checks:[]}
+const FLAG_REASONS=['missing','moved','wrong-items','spam']
+/** RC-0 の項目（冷房・段差なし・多目的トイレ）。古いバックアップには無いので、無ければ付けない */
+const tri=(v:unknown):v is 'yes'|'no'|'unknown'=>v==='yes'||v==='no'||v==='unknown'
+const optionalText=(v:unknown,max:number)=>v===undefined||typeof v==='string'&&v.length<=max
+/** localStorage のキー。形式を変えるときは番号を上げる */
+export const STORAGE_KEY='epoku:data:v1'
+// 投稿時の予測の入力（features）。古いバックアップにはないので任意。形が崩れていれば捨てる（投稿自体は残す）
+const SHADES=['sun','building','tree','roof','night','cloud'],CONDITIONS=['clear','partly-cloudy','cloudy','fog','rain','heavy-rain','snow','unknown'],num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi,numOrNull=(v:unknown,lo:number,hi:number)=>v===null||num(v,lo,hi)
+export function validFeatures(f:any):SeatFeatureSnapshot|undefined{if(!f||typeof f!=='object'||!num(f.hour,0,24)||!['weekday','weekend','holiday'].includes(f.dayType)||!numOrNull(f.temperatureC,-50,60)||!numOrNull(f.wbgt,-20,50)||!(f.condition===null||CONDITIONS.includes(f.condition))||!SHADES.includes(f.shade)||typeof f.roof!=='boolean'||!numOrNull(f.aiProbability,0,1))return undefined
+ return {hour:f.hour,dayType:f.dayType,temperatureC:f.temperatureC,wbgt:f.wbgt,condition:f.condition,shade:f.shade,roof:f.roof,aiProbability:f.aiProbability}}
+/** 読み込んだデータ（バックアップの JSON を含む）の形を確かめ、余計な項目を落として返す。おかしければ例外 */
+export function validateSaved(v:any):SavedData{
+ if(!v||typeof v!=='object')throw Error('Rest Care（epoku）のバックアップではありません。')
+ const x=v as {version?:unknown;favorites?:unknown;reports?:any[];spots?:any[];flags?:any[];checks?:any[]}
+ if(x.version!==1||!Array.isArray(x.favorites)||!Array.isArray(x.reports)||!Array.isArray(x.spots))throw Error('バックアップの形式（version 1）を確認してください。')
+ if(x.favorites.length>2000||x.reports.length>20000||x.spots.length>2000||!x.favorites.every(f=>typeof f==='string'&&f.length<=150))throw Error('お気に入り・投稿・地点の件数か形式を確認してください。')
+ for(const r of x.reports)if(!r||typeof r.id!=='string'||r.id.length>150||typeof r.spotId!=='string'||r.spotId.length>150||!['sat','full','missing','facility'].includes(r.value)||!Number.isFinite(Date.parse(r.reportedAt))||Date.parse(r.reportedAt)>Date.now()+60000||r.origin!=='local')throw Error('投稿データの形式が不正です。')
+ for(const s of x.spots)if(!s||typeof s.id!=='string'||s.id.length>150||typeof s.name!=='string'||!s.name.trim()||s.name.length>80||!['bench','shelter','picnic','toilet','trash','water','indoor'].includes(s.kind)||!s.position||!Number.isFinite(s.position.lat)||!Number.isFinite(s.position.lng)||!inBounds(s.position)||!['yes','no','unknown'].includes(s.roof)||s.origin!=='user'||!(s.seats===null||Number.isInteger(s.seats)&&s.seats>0&&s.seats<=100)||!optionalText(s.note,160)||!optionalText(s.description,300)||!(s.createdAt===undefined||Number.isFinite(Date.parse(s.createdAt))))throw Error('地点データの形式が不正です。')
+ const flags=x.flags===undefined?[]:x.flags
+ if(!Array.isArray(flags)||flags.length>5000)throw Error('通報データの形式・件数を確認してください。')
+ for(const f of flags)if(!f||typeof f.id!=='string'||f.id.length>150||typeof f.spotId!=='string'||f.spotId.length>150||!FLAG_REASONS.includes(f.reason)||!Number.isFinite(Date.parse(f.flaggedAt)))throw Error('通報データの形式が不正です。')
+ // 答え合わせ（checks）は後から追加した項目。古いバックアップには無いので空として読む
+ const checks=x.checks===undefined?[]:x.checks
+ if(!Array.isArray(checks)||checks.length>5000)throw Error('答え合わせデータの形式・件数を確認してください。')
+ for(const c of checks)if(!c||typeof c.id!=='string'||c.id.length>150||typeof c.spotId!=='string'||c.spotId.length>150||!['shade','sun'].includes(c.observed)||!['shade','sun'].includes(c.predicted)||!Number.isFinite(Date.parse(c.checkedAt)))throw Error('答え合わせデータの形式が不正です。')
+ return {version:1,checks:checks.map(c=>({id:c.id,spotId:c.spotId,observed:c.observed,predicted:c.predicted,checkedAt:c.checkedAt})),favorites:[...new Set(x.favorites)],reports:x.reports.map(r=>{const features=validFeatures(r.features);return {id:r.id,spotId:r.spotId,value:r.value,reportedAt:r.reportedAt,origin:'local',...(features?{features}:{})}}),spots:x.spots.map(s=>({id:s.id,name:s.name,kind:s.kind,position:{...s.position},origin:'user',roof:s.roof,roofSource:'user',seats:s.seats,backrest:'unknown',wheelchair:'unknown',...(tri(s.cooling)?{cooling:s.cooling}:{}),...(tri(s.stepFree)?{stepFree:s.stepFree}:{}),...(tri(s.accessibleToilet)?{accessibleToilet:s.accessibleToilet}:{}),...(s.verifiedAt&&Number.isFinite(Date.parse(s.verifiedAt))?{verifiedAt:s.verifiedAt}:{}),infoSource:'user',...(s.note?{note:s.note}:{}),...(s.description?{description:s.description}:{}),...(s.createdAt?{createdAt:s.createdAt}:{})})),flags:flags.map(f=>({id:f.id,spotId:f.spotId,reason:f.reason,flaggedAt:f.flaggedAt}))}
 }
-
-export const EMPTY: SavedData = { version: 1, favorites: [], reports: [], spots: [], flags: [], checks: [] }
-
-const STORAGE_KEY = 'epoku:v1'
-const MAX_ID = 150
-const LIMIT = { spots: 1000, reports: 10000, favorites: 2000, flags: 5000, checks: 5000 }
-
-const SPOT_KINDS = new Set(['bench', 'shelter', 'picnic', 'toilet', 'trash', 'water', 'indoor'])
-const TRI = new Set(['yes', 'no', 'unknown'])
-const REPORT_VALUES = new Set(['sat', 'full', 'missing', 'facility'])
-const FLAG_REASONS = new Set(['missing', 'moved', 'wrong-items', 'spam'])
-const SHADE_SUN = new Set(['shade', 'sun'])
-const DAY_TYPES = new Set(['weekday', 'weekend', 'holiday'])
-const SHADE_STATES = new Set(['sun', 'building', 'tree', 'roof', 'night', 'cloud'])
-const CONDITIONS = new Set(['clear', 'partly-cloudy', 'cloudy', 'fog', 'rain', 'heavy-rain', 'snow', 'unknown'])
-
-/* ── 小さな判定 ─────────────────────────────── */
-
-const isId = (v: unknown) => typeof v === 'string' && v.length <= MAX_ID
-const isDate = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v))
-const inRange = (v: unknown, lo: number, hi: number) => typeof v === 'number' && Number.isFinite(v) && lo <= v && v <= hi
-const inRangeOrNull = (v: unknown, lo: number, hi: number) => v === null || inRange(v, lo, hi)
-const isTri = (v: unknown): v is 'yes' | 'no' | 'unknown' => typeof v === 'string' && TRI.has(v)
-/** 省略可の文字列。あれば長さの上限を見る */
-const optionalText = (v: unknown, max: number) => v === undefined || (typeof v === 'string' && v.length <= max)
-
-/** 後から足した項目は古いバックアップにないので、無ければ空の配列として扱う */
-function listOrEmpty(v: unknown, max: number, message: string): any[] {
-  const list = v === undefined ? [] : v
-  if (!Array.isArray(list) || list.length > max) throw new Error(message)
-  return list
+/** 起動時に読む。壊れていれば空で始め、理由を返す */
+export function loadSaved():{data:SavedData;error:string|null}{
+ try{const raw=localStorage.getItem(STORAGE_KEY);return {data:raw?validateSaved(JSON.parse(raw)):structuredClone(EMPTY),error:null}}
+ catch(e){return {data:structuredClone(EMPTY),error:e instanceof Error?`保存データを読めなかったため、空の状態で始めます（${e.message}）`:'保存データを読めませんでした。'}}
 }
+/** 保存する。容量不足やプライベートモードで失敗したら false */
+export function persistSaved(d:SavedData){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));return true}catch{return false}}
 
-/* ── 投稿時の予測の入力 ─────────────────────── */
-
-/** 投稿に添えた予測の入力。形が崩れていれば undefined を返し、投稿そのものは残す */
-export function validFeatures(f: any): SeatFeatureSnapshot | undefined {
-  if (!f || typeof f !== 'object') return undefined
-  const ok =
-    inRange(f.hour, 0, 24) &&
-    DAY_TYPES.has(f.dayType) &&
-    inRangeOrNull(f.temperatureC, -50, 60) &&
-    inRangeOrNull(f.wbgt, -20, 50) &&
-    (f.condition === null || CONDITIONS.has(f.condition)) &&
-    SHADE_STATES.has(f.shade) &&
-    typeof f.roof === 'boolean' &&
-    inRangeOrNull(f.aiProbability, 0, 1)
-  if (!ok) return undefined
-  const { hour, dayType, temperatureC, wbgt, condition, shade, roof, aiProbability } = f
-  return { hour, dayType, temperatureC, wbgt, condition, shade, roof, aiProbability }
-}
-
-/* ── 1 件ずつの検査と整形 ───────────────────── */
-
-function cleanReport(r: any): SeatReport {
-  const valid =
-    r && isId(r.id) && isId(r.spotId) && REPORT_VALUES.has(r.value) &&
-    isDate(r.reportedAt) && Date.parse(r.reportedAt) <= Date.now() + 60_000 &&
-    r.origin === 'local'
-  if (!valid) throw new Error('投稿データの形式が不正です。')
-  const features = validFeatures(r.features)
-  return { id: r.id, spotId: r.spotId, value: r.value, reportedAt: r.reportedAt, origin: 'local', ...(features ? { features } : {}) }
-}
-
-function cleanSpot(s: any): Spot {
-  const p = s?.position
-  const valid =
-    s && isId(s.id) &&
-    typeof s.name === 'string' && s.name.trim() !== '' && s.name.length <= 80 &&
-    SPOT_KINDS.has(s.kind) &&
-    p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && inBounds(p) &&
-    isTri(s.roof) && s.origin === 'user' &&
-    (s.seats === null || (Number.isInteger(s.seats) && s.seats >= 1 && s.seats <= 100)) &&
-    optionalText(s.note, 160) && optionalText(s.description, 300) &&
-    (s.createdAt === undefined || isDate(s.createdAt))
-  if (!valid) throw new Error('地点データの形式が不正です。')
-
-  const spot: Spot = {
-    id: s.id,
-    name: s.name,
-    kind: s.kind,
-    position: { lat: p.lat, lng: p.lng },
-    origin: 'user',
-    roof: s.roof,
-    roofSource: 'user',
-    seats: s.seats,
-    backrest: 'unknown',
-    wheelchair: 'unknown',
-    infoSource: 'user',
-  }
-  // RC-0 の設備情報は、はい・いいえ・わからない のどれかのときだけ持ち込む
-  if (isTri(s.cooling)) spot.cooling = s.cooling
-  if (isTri(s.stepFree)) spot.stepFree = s.stepFree
-  if (isTri(s.accessibleToilet)) spot.accessibleToilet = s.accessibleToilet
-  if (isDate(s.verifiedAt)) spot.verifiedAt = s.verifiedAt
-  if (s.note) spot.note = s.note
-  if (s.description) spot.description = s.description
-  if (s.createdAt) spot.createdAt = s.createdAt
-  return spot
-}
-
-function cleanFlag(f: any): SpotFlag {
-  if (!f || !isId(f.id) || !isId(f.spotId) || !FLAG_REASONS.has(f.reason) || !isDate(f.flaggedAt)) {
-    throw new Error('通報データの形式が不正です。')
-  }
-  return { id: f.id, spotId: f.spotId, reason: f.reason, flaggedAt: f.flaggedAt }
-}
-
-function cleanCheck(c: any): ShadeCheck {
-  if (!c || !isId(c.id) || !isId(c.spotId) || !SHADE_SUN.has(c.observed) || !SHADE_SUN.has(c.predicted) || !isDate(c.checkedAt)) {
-    throw new Error('答え合わせデータの形式が不正です。')
-  }
-  return { id: c.id, spotId: c.spotId, observed: c.observed, predicted: c.predicted, checkedAt: c.checkedAt }
-}
-
-/* ── 全体 ───────────────────────────────────── */
-
-/** 保存データ・バックアップを検査し、必要な項目だけを持つ新しいオブジェクトにして返す */
-export function validateSaved(input: unknown): SavedData {
-  if (!input || typeof input !== 'object') throw new Error('Rest Care（epoku）のバックアップではありません。')
-  const d = input as Record<string, any>
-
-  const sizesOk =
-    d.version === 1 &&
-    Array.isArray(d.favorites) && d.favorites.length <= LIMIT.favorites &&
-    Array.isArray(d.reports) && d.reports.length <= LIMIT.reports &&
-    Array.isArray(d.spots) && d.spots.length <= LIMIT.spots
-  if (!sizesOk) throw new Error('バックアップの形式・件数を確認してください。')
-  if (!d.favorites.every(isId)) throw new Error('保存先の形式が不正です。')
-
-  const reports = d.reports.map(cleanReport)
-  const spots = d.spots.map(cleanSpot)
-  const flags = listOrEmpty(d.flags, LIMIT.flags, '通報データの形式・件数を確認してください。').map(cleanFlag)
-  const checks = listOrEmpty(d.checks, LIMIT.checks, '答え合わせデータの形式・件数を確認してください。').map(cleanCheck)
-
-  return { version: 1, favorites: Array.from(new Set<string>(d.favorites)), reports, spots, flags, checks }
-}
-
-export function readSaved(): { data: SavedData; error?: string } {
-  try {
-    const text = localStorage.getItem(STORAGE_KEY)
-    return { data: text ? validateSaved(JSON.parse(text)) : structuredClone(EMPTY) }
-  } catch {
-    return { data: structuredClone(EMPTY), error: '保存データを読み取れませんでした。初期状態で表示しています。' }
-  }
-}
-
-export function persist(data: SavedData): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validateSaved(data)))
-  } catch {
-    throw new Error('保存できませんでした。ブラウザーの保存設定や空き容量をご確認ください。')
-  }
-}
-
-/** バックアップを JSON ファイルとしてダウンロードさせる */
-export function exportSaved(data: SavedData): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = 'epoku-backup.json'
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000)
-}

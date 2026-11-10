@@ -1,33 +1,8 @@
-# API接続ガイド
+# API の設定（任意）
 
-APIは必要なものだけ有効化してください。初期状態で外部APIのキーは不要です。
+API キーがなくても、同梱の OpenStreetMap データとデモの天気で全機能が動きます。キーを入れた機能だけが実データに切り替わります。設定は `app/.env.example` を参照してください（2026-11-10 に書き直し）。
 
-## Google Maps
-
-1. Google CloudでMaps JavaScript APIを有効化し、請求設定と利用枠を確認する。
-2. ブラウザー用キーを作成し、アプリのURL・localhostにHTTPリファラー制限を付け、利用APIを絞る。
-3. アプリの設定にキーを入力し「Google 2Dに接続」または「Google 3Dに接続」を選ぶ。起動時の既定値は `VITE_GOOGLE_MAPS_API_KEY`。
-
-3Dは `Map3DElement` と対話型マーカーを使用します。WebGL対応など端末条件があります。地図表示に失敗するとモデル地図へ戻ります。日陰の判定はGoogleの映像に依存しません。ブラウザーに読み込んだGoogle SDKのキーを変えるときはページを再読み込みしてから再接続してください。
-
-公式: https://developers.google.com/maps/documentation/javascript/3d/marker-overview
-
-## 天気
-
-Open-Meteoは設定画面で任意取得します。取得した時間別予報の範囲内だけ使用し、範囲外の日付には「天気デモ」を表示します。天気APIの無料利用条件は用途に合わせて確認してください。
-
-Google Weatherは `.env` に `GOOGLE_WEATHER_API_KEY` を置き、Weather APIを有効化。`npm run dev:all` でNode APIを立ち上げて取得ボタンを押します。対象エリア固定で24時間を取得し、10分キャッシュします。キーや上流エラー本文をクライアントに返しません。
-
-公式: https://open-meteo.com/en/docs 、https://developers.google.com/maps/documentation/weather/hourly-forecast
-
-## Gemini
-
-`.env` に `GEMINI_API_KEY` と `GEMINI_MODEL` を設定します。キーの代わりに Vertex AI も使えます：`GOOGLE_CLOUD_PROJECT`（と任意で `GOOGLE_CLOUD_LOCATION`、既定 `global`）を置くと、キーなしで呼びます。認証は Vercel では Workload Identity 連携（下の「Vercel（公開）」）、Cloud Run では実行サービスアカウントです（ローカルでは使えないので `GEMINI_API_KEY` を使う）。両方あれば `GEMINI_API_KEY` が優先です。`GEMINI_HOURLY_LIMIT` を置くと、サーバー全体の 1 時間あたりの呼び出し回数を絞ります（超えると 429）。モデル名は利用できる公式モデルに合わせて変更できます。`npm run dev:all` を起動し、スポットの「予測の理由を見る」内から依頼します。入力はスポットの表示名・推定済み確率・計算の根拠だけです。正確な端末現在地・投稿者情報は送りません。
-
-Node APIはループバックだけで待ち受け、Host/Originを制限し、本文サイズ・入力型・簡易レート制限・タイムアウトを設けています。公開インターネット用の認証付きバックエンドとしては設計していません。
-
-公式: https://aistudio.google.com/api-reference/generate-content
-
+`.env` に `GEMINI_API_KEY` と `GEMINI_MODEL` を設定します。キーの代わりに Vertex AI も使えます：`GOOGLE_CLOUD_PROJECT`（と任意で `GOOGLE_CLOUD_LOCATION`、既定 `global`）を置くと、Cloud Run の実行サービスアカウントで認証して呼びます（キー不要。ローカルでは使えないので `GEMINI_API_KEY` を使う）。両方あれば `GEMINI_API_KEY` が優先です。`GEMINI_HOURLY_LIMIT` を置くと、サーバー全体の 1 時間あたりの呼び出し回数を絞ります（超えると 429）。モデル名は利用できる公式モデルに合わせて変更できます。`npm run dev:all` を起動し、スポットの「予測の理由を見る」内から依頼します。入力はスポットの表示名・推定済み確率・計算の根拠だけです。正確な端末現在地・投稿者情報は送りません。
 ## Googleログイン・Google Health（休憩判断・任意）
 
 休憩シート（ヘッダーの「休憩する」）は手入力とデモ値だけで動きます。Google Health の値を使うときだけ設定します。
@@ -37,41 +12,16 @@ Node APIはループバックだけで待ち受け、Host/Originを制限し、�
 3. `app/.env` に `GOOGLE_OAUTH_CLIENT_ID` と `GOOGLE_OAUTH_CLIENT_SECRET` を置き、`npm run dev:all` を起動する。リダイレクト URI を固定したいときは `GOOGLE_OAUTH_REDIRECT_URI` を使う。
 
 - 読む範囲は利用者が休憩シートで選んだ項目だけです：`googlehealth.activity_and_fitness.readonly`（歩数・活動時間）、`googlehealth.sleep.readonly`（睡眠）、`googlehealth.health_metrics_and_measurements.readonly`（心拍）。加えて `openid profile`。
-- 認可コードは PKCE と state で受けます。トークンは `SESSION_SECRET` から作った鍵で AES-256-GCM 暗号化し、`epoku_sid` の HttpOnly Cookie にだけ入れます（最長 8 時間）。サーバーに状態を持たないので、Vercel のように毎回別のインスタンスが応答しても続きます。ブラウザーの JavaScript からは読めず、鍵がなければ中身も読めません。健康データの値は保存しません。
-- `SESSION_SECRET` が無いときはプロセスごとの乱数鍵を使います（ローカル開発用。再起動でログアウト）。Vercel 上では `SESSION_SECRET` が無いとログインを未設定扱いにします。鍵を変えると全員ログアウトになります。
-- ログアウトした Cookie は、そのインスタンスのメモリで無効にし、Google 側のトークンも取り消します（別のインスタンスでは Cookie の期限まで残りますが、Google のトークンは取り消し済みなので健康データは読めません）。
+- 認可コードは PKCE と state で受け、トークンはサーバーのメモリだけに置きます（`epoku_sid` の HttpOnly Cookie、最長 8 時間、再起動で消える）。ブラウザーと端末には渡しません。健康データの値も保存しません。
 - 画面へ返すのは当日の集計値（歩数・活動分・昨夜の睡眠時間）と、心拍の区分（平常／やや高め／高め）だけです。心拍の時系列や位置は返しません。
 - Gemini のひと言に健康データを使うのは、利用者が同意したときだけです。サーバー側でも許可リスト（`sanitizeRestContext`）で知らない項目と同意なしの健康データを捨て、診断・熱中症・病院・電話番号の表現は固定文に差し替えます。
-- コールバックは `/?health=connected` などへ戻すため、画面と API が同じオリジンにある前提です（開発時は Vite の `/api` プロキシ、公開時は Vercel の同じドメインの `/api`）。APK や別ホストの静的配信からは今のところ使えません。
+- コールバックは `/?health=connected` などへ戻すため、画面と API が同じオリジンにある前提です（開発時は Vite の `/api` プロキシ、公開時は下の Cloud Run で同じサーバーが画面も配る）。APK や別ホストの静的配信からは今のところ使えません。
 - テスト状態の OAuth アプリはリフレッシュトークンが 7 日で失効します。Google Health 側でデータ連携が済んでいないアカウントは `linked:false`（ACCOUNT_NOT_LINKED）として「データなし」を表示します。
 - 実際の Google アカウントでの通し確認と、各データ型のレスポンス項目名（歩数の `count`、睡眠の `minutesAsleep` など）の実データ照合はまだです。項目名は公式リファレンスに合わせて実装し、読めない場合は値を入れずに手入力へ戻します。
 
 公式: https://developers.google.com/health/setup 、https://developers.google.com/health/scopes 、https://developers.google.com/health/reference/rest/v4/users.dataTypes.dataPoints/list
 
-## Vercel（公開・既定）
-
-構成は GitHub（ソース）→ Vercel（画面と `/api` のサーバーレス関数）＋ Firebase（匿名認証・Firestore）＋ Google Cloud の API（Gemini/Vertex AI・Weather・Maps・OAuth/Google Health）です。
-
-- 画面は `npm run build` の `dist` を静的配信、`/api/*` は `server/vercel.ts`（Vercel Functions, Node.js 22）が受け、`server/index.ts` と同じ処理（`handleRequest`）を通ります。
-- ビルドは `app/vercel.json` の `npm run build && node scripts/vercel-output.mjs`。後者が Build Output API（`.vercel/output`）を書き出し、関数を Vite の SSR ビルドで 1 本の JS に束ね、ルーティング（`/api/*`→関数、それ以外→静的ファイル→`index.html`）も持ちます。TypeScript 7 は JS API が無く `@vercel/node` で `.ts` をコンパイルできないため、`api/` ディレクトリは使いません。手元では `vercel build` で同じ出力を確かめられます。
-- `PUBLIC_ORIGIN` を置かなくても、本番ドメイン（`VERCEL_PROJECT_PRODUCTION_URL`）とそのデプロイ自身の URL（`VERCEL_URL`・`VERCEL_BRANCH_URL`）だけを受け付けます。独自ドメインを付けたら `PUBLIC_ORIGIN` をそのドメインにします。
-
-1. Vercel でプロジェクトを作り、GitHub のリポジトリをつなぐ。**Root Directory は `app`**（Framework Preset は Other のままでよい。ビルド・インストールのコマンドは `vercel.json` が持つ）。Node.js のバージョンは 22.x。
-2. 環境変数（Production・Preview）を Vercel の画面で置く。秘密情報はチャットやリポジトリに書かない。
-   - 画面に埋め込む公開値：`VITE_GOOGLE_MAPS_API_KEY`・`VITE_FIREBASE_CONFIG`（`VITE_API_BASE_URL` は同じドメインなので置かない）
-   - サーバー専用：`GOOGLE_WEATHER_API_KEY`・`GOOGLE_OAUTH_CLIENT_ID`・`GOOGLE_OAUTH_CLIENT_SECRET`・`SESSION_SECRET`（`openssl rand -base64 48` などで作る）・`GEMINI_MODEL`・`GEMINI_HOURLY_LIMIT`
-   - Gemini は `GEMINI_API_KEY` を置くか、キーなしの Vertex AI（次の 3.）。
-3. Vertex AI をキーなしで使うとき（Workload Identity 連携）：
-   - Vercel のプロジェクト設定で OIDC Federation を有効にする（Team 発行者）。
-   - Google Cloud で Workload Identity プール／プロバイダー（発行者 `https://oidc.vercel.com/<チームのスラッグ>`、audience `https://vercel.com/<チームのスラッグ>`）とサービスアカウント（「Vertex AI ユーザー」）を作り、プールの主体にそのサービスアカウントの「Workload Identity ユーザー」を付ける。条件でプロジェクト名・環境を絞る。
-   - Vercel に `GOOGLE_CLOUD_PROJECT`・`GOOGLE_CLOUD_LOCATION=global`・`GCP_PROJECT_NUMBER`・`GCP_WORKLOAD_IDENTITY_POOL_ID`・`GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID`・`GCP_SERVICE_ACCOUNT_EMAIL` を置く。
-   - 関数は受け取った OIDC トークンを STS で交換し、サービスアカウントのトークン（1 時間、期限の 1 分前まで使い回す）で Vertex AI を呼ぶ。
-4. Googleログインを使うなら、OAuth クライアントの承認済みリダイレクト URI に `https://<本番ドメイン>/api/auth/google/callback` を足す。プレビューの URL は毎回変わるので、ログインの確認は本番ドメインか固定のブランチ URL で行う。Maps のキーの HTTP リファラー制限にも本番ドメインを足す。
-
-- 天気のキャッシュと回数制限（1 分 12 回、Gemini の 1 時間あたりの上限）は関数インスタンスのメモリにあるので、インスタンスごとの値です（厳密な全体上限ではない）。
-- 回数制限は `X-Forwarded-For` の末尾で数える。Vercel 上での実際の値はまだ確かめていない。
-
-## Cloud Run（別の公開方法）
+## Cloud Run（公開）
 
 `app/server/` が画面（`dist`）と API を同じオリジンから配ります。`PUBLIC_ORIGIN` を置くとそのホストだけを受け付け、Cookie に `Secure` が付き、OAuth のリダイレクト URI もそこから作ります。置かなければ従来どおりローカル専用（127.0.0.1 / localhost）です。
 
@@ -90,28 +40,10 @@ printf %s "$GEMINI_API_KEY" | gcloud secrets create GEMINI_API_KEY --data-file=-
    - 初回はデプロイ後に URL が決まるので、そのまま `PUBLIC_ORIGIN` を設定して 2 回目のリビジョンを作る。URL は `https://SERVICE-プロジェクト番号.REGION.run.app` の形を使う（もう一つの `…-an.a.run.app` は 403 になる）。サービスに `PUBLIC_ORIGIN` が既にあればそれを保つ。
 5. Googleログインを使うなら、OAuth クライアントの承認済みリダイレクト URI に `https://<サービスのURL>/api/auth/google/callback` を足す。Maps のキーの HTTP リファラー制限にもサービスの URL を足す。
 
-- ログインのセッションは暗号化した Cookie なので、`SESSION_SECRET` を Secret Manager から渡せば再起動・複数インスタンスでも続く（渡さなければ再起動でログアウト）。
+- ログインのセッションはサーバーのメモリにあるので `--max-instances=1` で動かす。再起動・新しいリビジョン・アイドルからの起動でログアウトになる。人数を増やすときは Firestore などにセッションを移す。
 - 回数制限（1 分 12 回）は `X-Forwarded-For` の末尾（Google の前段が足した接続元）で数える。実際の Cloud Run 上での値はまだ確かめていない。
 - 独自ドメインを付けたら `PUBLIC_ORIGIN` をそのドメインに変え、リダイレクト URI も合わせる（`*.run.app` からは 403 になる）。
 - ローカルでイメージを試す：`docker build -t epoku-local . && docker run --rm -p 8080:8080 -e PUBLIC_ORIGIN=http://localhost:8080 epoku-local` → http://localhost:8080/
-
-## Firebase
-
-1. Firebaseプロジェクトを作成し、Authenticationの匿名ログインを有効化する。
-2. Firestoreを作成し、このプロジェクトの `firestore.rules` を適用する。既存プロジェクトへ適用する場合は既存ルールと統合する。
-3. Webアプリの公開設定を `.env` の `VITE_FIREBASE_CONFIG` に1行のJSONで置く。
-
-```dotenv
-VITE_FIREBASE_CONFIG={"apiKey":"公開キー","authDomain":"PROJECT.firebaseapp.com","projectId":"PROJECT","appId":"WEB_APP_ID"}
-```
-
-4. 開発サーバーを再起動し、設定から共有開始する。本番Web版は再ビルドする。
-
-コレクションは `epokuReports`。1投稿には `id, spotId, value, ownerUid, createdAt` を保存し、作成時刻はサーバー時刻です。他人の投稿の変更・削除を拒否します。匿名ログインした利用者は直近250件を読み取れます。Firestoreルールと実プロジェクトによる動作確認はまだです。公開運用ではApp Check、スパム制限、データ保持期間、利用規約・同意をプロダクトに合わせて追加してください。
-
-公式: https://firebase.google.com/docs/firestore/security/rules-conditions
-
-## PLATEAU・精度改善
 
 現在の日陰計算の入口は `Building[]` と `Tree[]` です。PLATEAUから変換した輪郭・高さを `AreaDataset.buildings` に渡せば、画面を変えずに利用できます。PLATEAU取得・変換自体は未実装です。空席予測は「モデル v1」です。
 
@@ -120,3 +52,7 @@ VITE_FIREBASE_CONFIG={"apiKey":"公開キー","authDomain":"PROJECT.firebaseapp.
 - 確からしさ（高／中／低と 80% の幅）は、仮定の多さと投稿量から出す目安で、実測で校正した値ではありません。
 - 共有投稿（Firestore）には投稿時の入力を送らないため、他の人の投稿は直近の反映にだけ使われ、過去分の補正には使われません。
 - 現地観測で正解データを集め、補正の効果と幅の校正を確かめる段階が残っています。
+
+## Vercel で公開する
+
+`vercel.json` のとおり、`npm run build` のあと `node scripts/vercel-output.mjs` が画面（`dist`）と API 関数（`server/vercel.ts` を 1 本に束ねたもの）を `.vercel/output` に書き出します。`/api/*` は関数へ、それ以外は画面へ回します。環境変数は Vercel のプロジェクト設定に入れます（`PUBLIC_ORIGIN` に公開 URL、秘密のキーは Sensitive に）。

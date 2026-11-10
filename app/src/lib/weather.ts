@@ -1,113 +1,27 @@
-// 2026-11-10 期間内に書き直し。
-// 天気の取得と表示用ラベル。
-//   openMeteo()     ブラウザーから Open-Meteo を直接呼ぶ（キー不要、7 日分）
-//   googleWeather() 自前 API（/api/weather）経由で Google Weather を呼ぶ
-//   demoWeather()   予報が無いときの手動デモ
-
-import type { WeatherCondition, WeatherForecast, WeatherHour } from '../domain/types.ts'
-import { jstDate } from '../domain/time.ts'
-import { apiUrl } from './api.ts'
-
-const HOUR_MS = 3_600_000
-
-export const WEATHER_LABEL: Record<WeatherCondition, string> = {
-  clear: '晴れ',
-  'partly-cloudy': '晴れ時々くもり',
-  cloudy: 'くもり',
-  fog: '霧',
-  rain: '雨',
-  'heavy-rain': '強い雨',
-  snow: '雪',
-  unknown: '不明',
+// 天気（Open-Meteo の予報、サーバー経由の Google Weather、APIなしのデモ値）。2026-11-10 に書き直し
+import type {WeatherCondition,WeatherForecast,WeatherHour,WeatherNow} from '../domain/types.ts'
+import {apiUrl} from './api.ts'
+import {AREA_CENTER} from '../domain/area.ts'
+import {jstDate} from '../domain/time.ts'
+export const WEATHER_LABEL:Record<WeatherCondition,string>={clear:'晴れ','partly-cloudy':'晴れ時々くもり',cloudy:'くもり',fog:'霧',rain:'雨','heavy-rain':'強い雨',snow:'雪',unknown:'不明'}
+/** APIなしで使う天気。11月の横浜の平年並みの気温を、日の出前に低く・14時ごろに高くなるように作る */
+export function demoWeather(day:string,minutes:number,temperatureC?:number,condition:WeatherCondition='clear'):WeatherNow{
+ const month=Number(day.slice(5,7))||11,mean=[6,6.5,9.5,14.5,19,22,26,27.5,24,19,14,9][month-1],range=7
+ const t=temperatureC??Math.round((mean+range/2*Math.cos((minutes/60-14)/24*2*Math.PI))*10)/10
+ return {temperatureC:t,condition,humidity:60,precipitationProbability:condition==='rain'||condition==='heavy-rain'?80:10,windSpeed:3,solarRadiation:null}
 }
-
-/** 手動デモの 1 時間分。湿度・風は平均的な値で固定し、雨のときだけ降水確率を上げる */
-export function demoWeather(day: string, minutes: number, temp = 24, condition: WeatherCondition = 'clear'): WeatherHour {
-  return {
-    time: jstDate(day, minutes).toISOString(),
-    condition,
-    temperatureC: temp,
-    humidity: 60,
-    precipitationProbability: condition === 'rain' ? 90 : 10,
-    solarRadiation: null,
-    windSpeed: 2,
-  }
+/** WMO の天気コードを区分に */
+export function wmoCondition(code:number):WeatherCondition{if(code===0||code===1)return 'clear';if(code===2)return 'partly-cloudy';if(code===3)return 'cloudy';if(code===45||code===48)return 'fog';if(code>=71&&code<=77||code===85||code===86)return 'snow';if(code===65||code===67||code===82||code>=95)return 'heavy-rain';if(code>=51&&code<=82)return 'rain';return 'unknown'}
+/** Open-Meteo（キー不要）の 1 時間ごとの予報（今日・明日） */
+export async function openMeteo(at=AREA_CENTER):Promise<WeatherForecast>{
+ const u=`https://api.open-meteo.com/v1/forecast?latitude=${at.lat}&longitude=${at.lng}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,shortwave_radiation&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=2`
+ const r=await fetch(u,{signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('天気予報を取得できませんでした。デモの天気を使います。')
+ const d=await r.json(),h=d.hourly
+ const hours:WeatherHour[]=h.time.map((t:string,i:number)=>({time:jstDate(t.slice(0,10),Number(t.slice(11,13))*60).toISOString(),temperatureC:h.temperature_2m[i],condition:wmoCondition(h.weather_code[i]),humidity:h.relative_humidity_2m[i]??null,precipitationProbability:h.precipitation_probability[i]??null,windSpeed:h.wind_speed_10m[i]??null,solarRadiation:h.shortwave_radiation[i]??null}))
+ return {source:'open-meteo',sourceLabel:'Open-Meteo 予報',fetchedAt:new Date().toISOString(),hours}
 }
+/** 予報のうち、時刻 t を含む 1 時間の値（予報の範囲外なら null） */
+export function weatherAt(f:WeatherForecast|null|undefined,t:Date):WeatherHour|null{if(!f)return null;const x=t.getTime();return f.hours.find(h=>x>=Date.parse(h.time)&&x<Date.parse(h.time)+3600_000)??null}
+export async function googleWeather():Promise<WeatherForecast>{const r=await fetch(apiUrl('/api/weather'),{signal:AbortSignal.timeout(20000)});if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Weather APIサーバーは未接続です。');const d=await r.json();if(!r.ok)throw Error(d.error||'天気の取得に失敗しました。');return d}
 
-/** time を含む 1 時間の予報。範囲外なら null */
-export function weatherAt(forecast: WeatherForecast | null, time: Date): WeatherHour | null {
-  if (!forecast) return null
-  const t = time.getTime()
-  for (const hour of forecast.hours) {
-    const start = Date.parse(hour.time)
-    if (start <= t && t < start + HOUR_MS) return hour
-  }
-  return null
-}
 
-/* ── Open-Meteo ─────────────────────────────── */
-
-/** WMO の天気コードをアプリの区分にまとめる */
-function fromWmoCode(code: number): WeatherCondition {
-  if (code === 0) return 'clear'
-  if (code <= 2) return 'partly-cloudy'
-  if (code === 3) return 'cloudy'
-  if (code <= 48) return 'fog'
-  if (code >= 71 && code <= 77) return 'snow'
-  if (code >= 95) return 'heavy-rain'
-  return 'rain'
-}
-
-const OPEN_METEO_URL = (() => {
-  const url = new URL('https://api.open-meteo.com/v1/forecast')
-  url.search = new URLSearchParams({
-    latitude: '35.45765',
-    longitude: '139.6356',
-    hourly: 'temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,shortwave_radiation',
-    wind_speed_unit: 'ms',
-    timezone: 'Asia/Tokyo',
-    forecast_days: '7',
-  }).toString()
-  return url.toString()
-})()
-
-export async function openMeteo(): Promise<WeatherForecast> {
-  const res = await fetch(OPEN_METEO_URL, { signal: AbortSignal.timeout(15_000) })
-  if (!res.ok) throw new Error('天気を取得できませんでした。手動デモを引き続き使えます。')
-
-  const hourly = (await res.json())?.hourly
-  const columnsOk = Array.isArray(hourly?.time) && Array.isArray(hourly.temperature_2m) && Array.isArray(hourly.weather_code)
-  if (!columnsOk) throw new Error('天気データの形式が不正です。')
-
-  // 列ごとの配列を 1 時間ずつの行にする。気温か天気コードが欠けた時間は飛ばす
-  const pick = (column: unknown, i: number): number | null => (Array.isArray(column) ? column[i] ?? null : null)
-  const hours: WeatherHour[] = []
-  hourly.time.forEach((localTime: string, i: number) => {
-    const temperature = hourly.temperature_2m[i]
-    const code = hourly.weather_code[i]
-    if (!Number.isFinite(temperature) || !Number.isFinite(code)) return
-    hours.push({
-      // Open-Meteo は日本時間の "2026-11-10T13:00" 形式で返す
-      time: new Date(`${localTime}+09:00`).toISOString(),
-      condition: fromWmoCode(code),
-      temperatureC: temperature,
-      humidity: pick(hourly.relative_humidity_2m, i),
-      precipitationProbability: pick(hourly.precipitation_probability, i),
-      solarRadiation: pick(hourly.shortwave_radiation, i),
-      windSpeed: pick(hourly.wind_speed_10m, i),
-    })
-  })
-  if (hours.length === 0) throw new Error('有効な天気データがありません。')
-  return { hours, sourceLabel: 'Open-Meteo', isDemo: false, fetchedAt: new Date().toISOString() }
-}
-
-/* ── Google Weather（サーバー経由） ─────────── */
-
-export async function googleWeather(): Promise<WeatherForecast> {
-  const res = await fetch(apiUrl('/api/weather'), { signal: AbortSignal.timeout(20_000) })
-  // API サーバーが無い環境では index.html などが返るので、JSON かどうかで見分ける
-  if (!res.headers.get('content-type')?.includes('application/json')) throw new Error('Weather APIサーバーは未接続です。')
-  const body = await res.json()
-  if (!res.ok) throw new Error(body?.error || '天気の取得に失敗しました。')
-  return body as WeatherForecast
-}

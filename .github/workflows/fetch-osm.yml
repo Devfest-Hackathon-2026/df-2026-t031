@@ -1,0 +1,25 @@
+# 同梱の地図データを OpenStreetMap から取り直し、成果物（Artifacts）に置く。2026-11-10 作成
+name: fetch osm data
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/replace-pre-period-code]
+    paths: [app/scripts/fetch-osm.ts, app/src/domain/osmQuery.ts, .github/workflows/fetch-osm.yml]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: app}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - run: node scripts/fetch-osm.ts
+      - name: 取り直したデータをブランチに入れる
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/area-osm.json public/data/area-context.json
+          git commit -m "地図データ（OSM）を $(date -u +%Y-%m-%dT%H:%MZ) に取り直す" || echo "変更なし"
+          git push

@@ -1,62 +1,47 @@
 {
-  "name": "epoku",
-  "private": true,
-  "version": "0.3.0",
-  "type": "module",
-  "description": "epoku — 太陽の軌道と日陰を3Dで探索する休憩スポットマップ。OSM同梱データで動作し、外部APIを任意接続。",
-  "engines": {
-    "node": ">=22.18.0"
-  },
-  "scripts": {
-    "dev": "vite",
-    "dev:server": "node --watch server/index.ts",
-    "dev:all": "node scripts/dev-all.mjs",
-    "server": "node server/index.ts",
-    "build": "tsc -b && vite build && node scripts/generate-sw.mjs",
-    "preview": "vite preview",
-    "typecheck": "tsc -b",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "e2e": "node e2e/smoke.mjs",
-    "data:osm": "node scripts/fetch-osm.ts",
-    "check:apis": "node scripts/check-apis.ts",
-    "cap:sync": "npm run build && cap sync android",
-    "apk": "node scripts/build-apk.mjs"
-  },
-  "dependencies": {
-    "@capacitor/android": "^8.6.0",
-    "@capacitor/core": "^8.6.0",
-    "firebase": "^13.2.0",
-    "idb-keyval": "^6.3.0",
-    "lucide-react": "^1.68.0",
-    "maplibre-gl": "~6.16.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "suncalc": "^2.1.1",
-    "three": "^0.187.0",
-    "zustand": "^5.0.16"
-  },
-  "overrides": {
-    "@grpc/grpc-js": "^1.14.7"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^8.6.0",
-    "@tailwindcss/vite": "^4.3.4",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.8",
-    "@types/google.maps": "^3.66.9",
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@types/three": "^0.187.0",
-    "@vitejs/plugin-react": "^6.2.1",
-    "draco3d": "^1.5.9",
-    "jsdom": "^30.1.3",
-    "playwright-core": "^1.64.1",
-    "tailwindcss": "^4.3.4",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.5",
-    "vitest": "^5.1.0"
-  }
+ "name": "rest-care",
+ "private": true,
+ "version": "0.4.0",
+ "type": "module",
+ "description": "Rest Care — 体調や状況に合った休憩を取りやすくする休憩スポットマップ。OSM の同梱データで動き、Google の API は任意で接続。",
+ "engines": {"node": ">=22.18.0"},
+ "scripts": {
+  "dev": "vite",
+  "dev:server": "node --env-file-if-exists=.env --watch server/index.ts",
+  "dev:all": "node scripts/dev-all.mjs",
+  "server": "node server/index.ts",
+  "build": "tsc -b && vite build && node scripts/generate-sw.mjs",
+  "preview": "vite preview",
+  "typecheck": "tsc -b",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "data:osm": "node scripts/fetch-osm.ts",
+  "cap:sync": "npm run build && cap sync android",
+  "apk": "node scripts/build-apk.mjs"
+ },
+ "dependencies": {
+  "@capacitor/android": "^8.6.0",
+  "@capacitor/core": "^8.6.0",
+  "firebase": "^13.2.0",
+  "lucide-react": "^1.68.0",
+  "react": "^19.3.1",
+  "react-dom": "^19.3.1",
+  "suncalc": "^2.1.1",
+  "three": "^0.187.0"
+ },
+ "overrides": {"@grpc/grpc-js": "^1.14.7"},
+ "devDependencies": {
+  "@capacitor/cli": "^8.6.0",
+  "@types/google.maps": "^3.66.9",
+  "@types/node": "^24.0.0",
+  "@types/react": "^19.3.0",
+  "@types/react-dom": "^19.3.0",
+  "@types/three": "^0.187.0",
+  "@vitejs/plugin-react": "^6.2.1",
+  "draco3d": "^1.5.9",
+  "jsdom": "^30.1.3",
+  "typescript": "^7.0.2",
+  "vite": "^8.3.5",
+  "vitest": "^5.1.0"
+ }
 }

@@ -1,49 +1,15 @@
-// 2026-11-10 期間内に書き直し。
-// vite build の後に dist/sw.js を作る。
-// ビルド成果物（画面・地図データ）を先読みしてオフラインでも開けるようにする。
-//   画面遷移 … ネットワーク優先、つながらなければ保存済みの index.html
-//   それ以外 … 保存済みがあればそれを使う
-//   /api/ と他サイト、GET 以外 … Service Worker は触らない
-import { readdir, writeFile } from 'node:fs/promises'
-
-const listDir = async (dir, prefix) => (await readdir(dir)).map((name) => `${prefix}/${name}`)
-
-const precache = [
-  './',
-  './index.html',
-  './icon.svg',
-  './manifest.webmanifest',
-  ...(await listDir('dist/data', './data')),
-  ...(await listDir('dist/assets', './assets')),
-]
-// ビルドごとに名前を変え、古いキャッシュは activate で消す
-const cacheName = `epoku-${Date.now()}`
-
-function serviceWorker(CACHE, FILES) {
-  self.addEventListener('install', (event) => {
-    event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)))
-  })
-
-  self.addEventListener('activate', (event) => {
-    event.waitUntil(
-      caches.keys().then((names) =>
-        Promise.all(names.filter((n) => n.startsWith('epoku-') && n !== CACHE).map((n) => caches.delete(n))),
-      ),
-    )
-  })
-
-  self.addEventListener('fetch', (event) => {
-    const { request } = event
-    const url = new URL(request.url)
-    if (request.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/api/')) return
-    if (request.mode === 'navigate') {
-      event.respondWith(fetch(request).catch(() => caches.match('./index.html')))
-      return
-    }
-    event.respondWith(caches.match(request).then((hit) => hit || fetch(request)))
-  })
-}
-
-const source = `(${serviceWorker.toString()})(${JSON.stringify(cacheName)}, ${JSON.stringify(precache)});\n`
-await writeFile('dist/sw.js', source)
-console.log(`dist/sw.js を書き出しました（${precache.length} 件を先読み）`)
+// ビルド後に dist/sw.js を作る。画面と同梱データを先に保存し、通信できないときも開けるようにする。2026-11-10 作成
+import {readdir,writeFile} from 'node:fs/promises'
+import {join,relative} from 'node:path'
+import {createHash} from 'node:crypto'
+const dist='dist'
+async function list(dir){const out=[];for(const e of await readdir(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())out.push(...await list(p));else if(e.name!=='sw.js')out.push(relative(dist,p).split('\\').join('/'))}return out}
+const files=(await list(dist)).filter(f=>!f.endsWith('.map'))
+const version=createHash('sha256').update(files.join('\n')).digest('hex').slice(0,12)
+await writeFile(join(dist,'sw.js'),`const CACHE='rest-care-${version}',FILES=${JSON.stringify(['./',...files.map(f=>'./'+f)])}
+self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()))})
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(n=>n!==CACHE).map(n=>caches.delete(n)))).then(()=>self.clients.claim()))})
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin||u.pathname.startsWith('/api/'))return
+ e.respondWith(caches.match(e.request,{ignoreSearch:true}).then(hit=>hit||fetch(e.request).catch(()=>caches.match('./'))))})
+`)
+console.log(`sw.js: ${files.length} ファイル（${version}）`)

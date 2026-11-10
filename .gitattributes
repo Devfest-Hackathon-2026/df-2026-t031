@@ -1,6 +1,7 @@
+# 改行は LF にそろえる（Windows の gradlew.bat だけ CRLF）。2026-11-10 作成
 * text=auto eol=lf
 *.bat text eol=crlf
 *.png binary
 *.jpg binary
-*.jpeg binary
+*.glb binary
 *.jar binary

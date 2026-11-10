@@ -1,309 +1,85 @@
-import { centroidLatLng, LocalProjection, pointInRing, ringArea } from './geo.ts'
-import type { Coord, SlimElement, SlimOsm } from './osmQuery.ts'
-import type { AreaDataset, Attractor, Building, LatLng, ParkArea, Spot, SpotKind, Tree, TriState, XY } from './types.ts'
+// OpenStreetMap のデータ（scripts/fetch-osm.ts が作る軽量形式）をアプリのデータに変換する。2026-11-10 に書き直し
+import {LocalProjection,pointInRing} from './geo.ts'
+import type {AreaDataset,Attractor,Building,LatLng,Park,Spot,SpotKind,Tree,TriState,XY} from './types.ts'
 
-// 2026-11-10 期間内に書き直し。
-// 軽量化した OSM データ（osmQuery の slimOverpass の出力）を、アプリで使う AreaDataset に変換する。
-// 同梱のスナップショットも、ライブ取得したデータも、どちらもここを通る。
+/** 軽量形式。n = 点（lat/lng）、w = 線・面（g に座標の列） */
+export interface SlimElement{t:'n'|'w';id:number;tags:Record<string,string>;lat?:number;lng?:number;g?:[number,number][]}
+export interface SlimOsm{version:2;source:string;fetchedAt:string;osmBase:string|null;elements:SlimElement[]}
 
-/** 階数タグから高さを出すときの 1 階分（m） */
-export const LEVEL_HEIGHT_M = 3.2
-/** 樹木のタグが無いときに使う値（m） */
-export const TREE_DEFAULTS = { height: 8, crownRadius: 3, crownBase: 2.5 }
+const tri=(v:string|undefined):TriState=>v==='yes'?'yes':v==='no'?'no':'unknown'
+const num=(v:string|undefined)=>{if(!v)return null;const n=parseFloat(v.replace(',','.'));return Number.isFinite(n)?n:null}
+const ringOf=(e:SlimElement):LatLng[]=>(e.g??[]).map(([lat,lng])=>({lat,lng}))
+const centerOf=(e:SlimElement):LatLng|null=>{if(e.t==='n'&&e.lat!==undefined&&e.lng!==undefined)return {lat:e.lat,lng:e.lng};const g=e.g??[];if(!g.length)return null;return {lat:g.reduce((n,p)=>n+p[0],0)/g.length,lng:g.reduce((n,p)=>n+p[1],0)/g.length}}
 
-/** 樹冠の下端（m）。背の低い木は高さの 40% までにする */
-export function treeCrownBase(height: number): number {
-  return Math.min(height * 0.4, TREE_DEFAULTS.crownBase)
+function spotKind(t:Record<string,string>):SpotKind|null{
+ if(t.leisure==='picnic_table')return 'picnic'
+ switch(t.amenity){
+  case 'bench':return t.indoor==='yes'?'indoor':'bench'
+  case 'shelter':return 'shelter'
+  case 'toilets':return 'toilet'
+  case 'waste_basket':case 'recycling':case 'waste_disposal':return 'trash'
+  case 'drinking_water':case 'water_point':return 'water'
+  case 'library':case 'community_centre':case 'lounge':return 'indoor'
+ }
+ return null
+}
+/** 建物の高さ（m）と出どころ */
+function heightOf(t:Record<string,string>):{height:number;min:number;source:Building['heightSource']}{
+ const h=num(t.height),lv=num(t['building:levels']),min=num(t.min_height)??((num(t['building:min_level'])??0)*3.2)
+ if(h!==null&&h>0)return {height:h,min,source:'measured'}
+ if(lv!==null&&lv>0)return {height:lv*3.2+(t.roof?.includes('pitched')?1.5:0.6),min,source:'levels'}
+ const b=t.building??t['building:part']
+ return {height:b==='roof'?4:b==='house'||b==='detached'?7:b==='kiosk'||b==='hut'||b==='shed'?3.5:b==='train_station'?14:12,min:b==='roof'?Math.max(min,3):min,source:'assumed'}
+}
+function attractorOf(e:SlimElement,t:Record<string,string>,p:LatLng):Attractor|null{
+ const name=t.name??t['name:ja']??''
+ if(t.railway==='station'||t.public_transport==='station')return {id:'osm:'+e.id,name,position:p,weight:3,kind:'station'}
+ if(t.shop==='mall'||t.shop==='department_store')return {id:'osm:'+e.id,name,position:p,weight:2,kind:'mall'}
+ if(t.tourism)return {id:'osm:'+e.id,name,position:p,weight:t.tourism==='theme_park'?2.5:1.5,kind:'sight'}
+ return null
 }
 
-type Tags = Record<string, string>
-
-const latLngOf = ([lat, lng]: Coord): LatLng => ({ lat, lng })
-const round1 = (n: number) => Math.round(n * 10) / 10
-const nameOf = (tags: Tags): string | null => tags['name:ja'] ?? tags.name ?? null
-
-const FEET_TO_M = 0.3048
-const LENGTH_RE = /^(-?\d+(?:[.,]\d+)?)\s*(m|ft|')?/i
-
-/** "12" / "12 m" / "12.5m" / "40 ft" / "12;15" などを m に直す。読めなければ null */
-export function parseLength(raw: string | undefined): number | null {
-  const match = raw ? LENGTH_RE.exec(raw.trim()) : null
-  if (!match) return null
-  const value = Number(match[1].replace(',', '.'))
-  if (!Number.isFinite(value)) return null
-  const isFeet = /^(ft|')$/i.test(match[2] ?? '')
-  return isFeet ? value * FEET_TO_M : value
-}
-
-const nonNegative = (n: number | null) => (n !== null && n >= 0 ? n : null)
-
-const triState = (v: string | undefined): TriState => (v === 'yes' || v === 'no' ? v : 'unknown')
-
-/** amenity / leisure タグから休憩スポットの種類を決める */
-const SPOT_BY_AMENITY: Record<string, SpotKind> = {
-  bench: 'bench',
-  shelter: 'shelter',
-  toilets: 'toilet',
-  waste_basket: 'trash',
-  recycling: 'trash',
-  drinking_water: 'water',
-}
-
-function spotKindOf(tags: Tags): SpotKind | null {
-  const byAmenity = tags.amenity ? SPOT_BY_AMENITY[tags.amenity] : undefined
-  if (byAmenity) return byAmenity
-  return tags.leisure === 'picnic_table' ? 'picnic' : null
-}
-
-const RECYCLING_LABELS: ReadonlyArray<[tag: string, label: string]> = [
-  ['recycling:plastic_bottles', 'ペットボトル'],
-  ['recycling:cans', '缶'],
-  ['recycling:glass_bottles', 'びん'],
-  ['recycling:paper', '紙'],
-]
-
-function recyclingNote(tags: Tags): string | undefined {
-  if (tags.amenity !== 'recycling') return undefined
-  const accepted = RECYCLING_LABELS.filter(([tag]) => tags[tag] === 'yes').map(([, label]) => label)
-  return accepted.length > 0 ? `回収ボックス（${accepted.join('・')}）` : '回収ボックス'
-}
-
-const LOW_RISE = new Set(['house', 'detached', 'semidetached_house', 'terrace', 'residential'])
-const TINY = new Set(['garage', 'garages', 'shed', 'hut', 'kiosk', 'toilets', 'service', 'cabin'])
-const MID_RISE = new Set(['apartments', 'commercial', 'office', 'retail', 'hotel'])
-
-/** 高さも階数も無い建物の仮の高さ（m）。用途と床面積で決め、画面では「仮定」と出す */
-export function assumedBuildingHeight(tags: Tags, areaM2: number): number {
-  const use = tags.building ?? tags['building:part'] ?? 'yes'
-  if (LOW_RISE.has(use)) return 7
-  if (TINY.has(use)) return 3.5
-  if (MID_RISE.has(use)) return areaM2 > 1500 ? 30 : 18
-  if (areaM2 >= 1500) return 18
-  return areaM2 >= 200 ? 12 : 6
-}
-
-interface BuildingDraft {
-  building: Building
-  ring: XY[]
-  isPart: boolean
-}
-
-/** 屋根の厚みとみなす値（m）。下端が分からない屋根に使う */
-const ROOF_THICKNESS_M = 1.5
-const MIN_FOOTPRINT_M2 = 4
-
-function resolveHeight(tags: Tags, isRoof: boolean, area: number): Pick<Building, 'height' | 'heightSource'> {
-  const tagged = parseLength(tags.height)
-  if (tagged !== null && tagged > 0) return { height: tagged, heightSource: 'measured' }
-  const levels = nonNegative(parseLength(tags['building:levels']))
-  if (levels !== null && levels > 0) return { height: levels * LEVEL_HEIGHT_M, heightSource: 'levels' }
-  return { height: isRoof ? 4 : assumedBuildingHeight(tags, area), heightSource: 'assumed' }
-}
-
-function draftBuilding(id: string, coords: Coord[], tags: Tags, proj: LocalProjection): BuildingDraft | null {
-  const use = tags.building ?? tags['building:part']
-  if (coords.length < 4 || !use || use === 'no') return null
-
-  const footprint = coords.map(latLngOf)
-  const ring = footprint.map((p) => proj.toXY(p))
-  const area = ringArea(ring)
-  if (area < MIN_FOOTPRINT_M2) return null
-
-  const isPart = Boolean(tags['building:part']) && !tags.building
-  const isRoof = use === 'roof' || use === 'carport'
-  const { height, heightSource } = resolveHeight(tags, isRoof, area)
-
-  const minTagged = parseLength(tags.min_height)
-  const minLevels = nonNegative(parseLength(tags['building:min_level']))
-  let bottom: number
-  if (minTagged !== null) bottom = minTagged
-  else if (minLevels !== null) bottom = minLevels * LEVEL_HEIGHT_M
-  else bottom = isRoof ? Math.max(0, height - ROOF_THICKNESS_M) // 下は日陰だが人が通れる
-  : 0
-  bottom = Math.min(bottom, height - 0.5)
-
-  return {
-    building: {
-      id,
-      kind: isRoof ? 'roof' : isPart ? 'part' : 'building',
-      footprint,
-      height: round1(height),
-      minHeight: Math.max(0, round1(bottom)),
-      heightSource,
-      name: tags['name:ja'] ?? tags.name,
-    },
-    ring,
-    isPart,
+/** OSM の軽量形式から、地点・建物・樹木・公園・人が集まる場所を作る */
+export function parseOsm(raw:SlimOsm,opts:{origin:LatLng;live:boolean}):AreaDataset{
+ const proj=new LocalProjection(opts.origin),spots:Spot[]=[],buildings:Building[]=[],trees:Tree[]=[],parks:Park[]=[],attractors:Attractor[]=[]
+  const s = { measured: 0, levels: 0, assumed: 0, plateau: 0 }
+ for(const e of raw.elements??[]){
+  const t=e.tags??{}
+  if(e.t==='w'&&(t.building||t['building:part'])&&(e.g?.length??0)>=4){
+   const h=heightOf(t);s[h.source]++
+   buildings.push({id:'osm:'+e.id,kind:t.building==='roof'?'roof':'building',footprint:ringOf(e).slice(0,-1),height:h.height,minHeight:Math.min(h.min,h.height-.5),heightSource:h.source,...(t.name?{name:t.name}:{})})
+   const p=centerOf(e);if(p){const a=attractorOf(e,t,p);if(a)attractors.push(a)}
+   continue
   }
-}
-
-function ringsOf(e: SlimElement): Coord[][] {
-  switch (e.t) {
-    case 'w':
-      return [e.g]
-    case 'r':
-      return e.outer
-    default:
-      return []
+  if(t.natural==='tree'&&e.t==='n'&&e.lat!==undefined&&e.lng!==undefined){
+   const h=num(t.height)??8,crown=num(t.diameter_crown)
+   trees.push({id:'osm:'+e.id,position:{lat:e.lat,lng:e.lng},height:Math.min(30,Math.max(3,h)),crownRadius:crown?crown/2:Math.max(2,h*.35)})
+   continue
   }
-}
-
-function centerOf(e: SlimElement): LatLng {
-  if (e.t === 'n') return latLngOf(e.p)
-  const outer = ringsOf(e)[0] ?? []
-  return centroidLatLng(outer.map(latLngOf))
-}
-
-const OSM_TYPE = { n: 'node', w: 'way', r: 'relation' } as const
-const osmRef = (e: SlimElement) => `${OSM_TYPE[e.t]}/${e.id}`
-const appId = (e: SlimElement) => `osm:${e.t}${e.id}`
-
-const TOURISM = new Set(['attraction', 'museum', 'viewpoint', 'gallery', 'theme_park'])
-
-/** 人が集まる場所（駅・観光地・商業施設・公園）の種類 */
-function attractorKind(tags: Tags): Attractor['kind'] | null {
-  if (tags.railway === 'station' || tags.railway === 'subway_entrance') return 'station'
-  if (tags.tourism !== undefined && TOURISM.has(tags.tourism)) return 'tourism'
-  if (tags.shop === 'mall' || tags.shop === 'department_store') return 'mall'
-  return tags.leisure === 'park' ? 'park' : null
-}
-
-const WHEELCHAIR = new Set(['yes', 'limited', 'no'])
-
-function toSpot(e: SlimElement, kind: SpotKind): Spot {
-  const tags = e.tags
-  const seats = parseLength(tags.seats ?? tags.capacity)
-  const isShelter = kind === 'shelter'
-  const coveredTagged = tags.covered === 'yes' || tags.covered === 'no'
-  return {
-    id: appId(e),
-    kind,
-    name: nameOf(tags),
-    position: centerOf(e),
-    origin: 'osm',
-    seats: seats !== null && seats > 0 && seats < 100 ? Math.round(seats) : null,
-    roof: isShelter ? 'yes' : triState(tags.covered),
-    roofSource: isShelter ? 'kind' : coveredTagged ? 'tag' : null,
-    backrest: triState(tags.backrest),
-    wheelchair: WHEELCHAIR.has(tags.wheelchair) ? (tags.wheelchair as Spot['wheelchair']) : 'unknown',
-    note: recyclingNote(tags),
-    ref: osmRef(e),
+  if(t.natural==='tree_row'&&e.g&&e.g.length>=2){
+   // 並木は 8m ごとに 1 本とみなす
+   const pts=ringOf(e).map(p=>proj.toXY(p));let k=0
+   for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],len=Math.hypot(b.x-a.x,b.y-a.y);for(let d=0;d<len;d+=8){const q={x:a.x+(b.x-a.x)*d/len,y:a.y+(b.y-a.y)*d/len};trees.push({id:`osm:${e.id}:${k++}`,position:proj.toLatLng(q),height:8,crownRadius:2.8})}}
+   continue
   }
-}
-
-function toTree(e: Extract<SlimElement, { t: 'n' }>): Tree {
-  const height = parseLength(e.tags.height)
-  const crownDiameter = parseLength(e.tags.diameter_crown)
-  const heightOk = height !== null && height > 1 && height < 60
-  const crownOk = crownDiameter !== null && crownDiameter > 0.5 && crownDiameter < 40
-  return {
-    id: appId(e),
-    position: latLngOf(e.p),
-    height: heightOk ? height : TREE_DEFAULTS.height,
-    crownRadius: crownOk ? crownDiameter / 2 : TREE_DEFAULTS.crownRadius,
-    heightSource: height ? 'measured' : 'assumed',
+  if(e.t==='w'&&(t.leisure==='park'||t.leisure==='garden'||t.leisure==='playground'||t.landuse==='grass'||t.landuse==='recreation_ground'||t.landuse==='village_green')&&(e.g?.length??0)>=4){parks.push({id:'osm:'+e.id,ring:ringOf(e).slice(0,-1),...(t.name?{name:t.name}:{})});continue}
+  const p=centerOf(e);if(!p)continue
+  const kind=spotKind(t)
+  if(kind){
+   const covered=t.covered??t.shelter
+   const roof:TriState=kind==='shelter'||kind==='indoor'?'yes':tri(covered)
+   const access=[t.opening_hours?`営業時間 ${t.opening_hours}`:'',t.access&&t.access!=='yes'?`利用: ${t.access}`:''].filter(Boolean).join(' / ')
+   spots.push({id:'osm:'+e.id,name:t.name??t['name:ja']??null,kind,position:p,roof,roofSource:roof==='unknown'?null:'tag',seats:num(t.seats)??num(t.capacity),backrest:tri(t.backrest),wheelchair:t.wheelchair==='limited'?'limited':tri(t.wheelchair),...(access?{access}:{}),description:[t.description,t.material?`素材: ${t.material}`:'',kind==='trash'&&t.recycling_type?`分別: ${t.recycling_type}`:''].filter(Boolean).join(' / '),origin:'osm',infoSource:'osm',...(t.indoor==='yes'||kind==='indoor'?{cooling:'unknown' as const}:{})})
+   continue
   }
-}
-
-/**
- * 高さの分からない建物の外形の中に「建物の一部（building:part）」があるなら、
- * 外形のほうは捨てて一部のほうを使う（一部のほうが形も高さも正確）。
- */
-function dropShellsWithParts(drafts: BuildingDraft[], proj: LocalProjection): Building[] {
-  const partCenters = drafts.filter((d) => d.isPart).map((d) => proj.toXY(centroidLatLng(d.building.footprint)))
-  const isRedundantShell = (d: BuildingDraft) =>
-    !d.isPart &&
-    d.building.kind === 'building' &&
-    d.building.heightSource === 'assumed' &&
-    partCenters.some((c) => pointInRing(c, d.ring))
-  return drafts.filter((d) => !isRedundantShell(d)).map((d) => d.building)
-}
-
-/**
- * タグで屋根の有無が分からないスポットを、建物の形から推定する。
- * 屋根・宙に浮いた建物の一部の下 → 屋根あり、建物の中 → 屋根あり、それ以外 → 屋根なし。
- */
-function inferRoofs(spots: Spot[], drafts: BuildingDraft[], proj: LocalProjection): void {
-  const overhead = drafts.filter(({ building: b }) => b.kind === 'roof' || (b.kind === 'part' && b.minHeight > 0))
-  const enclosed = drafts.filter(({ building: b }) => b.kind !== 'roof' && b.minHeight === 0)
-  for (const spot of spots) {
-    if (spot.roofSource === 'tag' || spot.roofSource === 'kind') continue
-    const p = proj.toXY(spot.position)
-    const under = (d: BuildingDraft) => pointInRing(p, d.ring)
-    if (overhead.some(under)) {
-      spot.roof = 'yes'
-      spot.roofSource = 'roof-polygon'
-    } else if (enclosed.some(under)) {
-      spot.roof = 'yes'
-      spot.roofSource = 'inside-building'
-    } else {
-      // OSM は「屋根なし」をわざわざタグにしないことが多いので、なしと推定する
-      spot.roof = 'no'
-      spot.roofSource = null
-    }
-  }
-}
-
-export interface ParseOptions {
-  /** 平面座標の原点（エリアの中心） */
-  origin: LatLng
-  live: boolean
-}
-
-export function parseOsm(data: SlimOsm, opts: ParseOptions): AreaDataset {
-  const proj = new LocalProjection(opts.origin)
-  const spots: Spot[] = []
-  const trees: Tree[] = []
-  const attractors: Attractor[] = []
-  const parks: ParkArea[] = []
-  const drafts: BuildingDraft[] = []
-
-  for (const e of data.elements) {
-    const { tags } = e
-
-    const spotKind = spotKindOf(tags)
-    if (spotKind) spots.push(toSpot(e, spotKind))
-
-    if (e.t === 'n' && tags.natural === 'tree') trees.push(toTree(e))
-
-    const crowd = attractorKind(tags)
-    if (crowd) attractors.push({ id: appId(e), kind: crowd, name: nameOf(tags), position: centerOf(e) })
-
-    if (tags.leisure === 'park') {
-      for (const ring of ringsOf(e)) {
-        parks.push({ id: `${appId(e)}-${parks.length}`, name: nameOf(tags), ring: ring.map(latLngOf) })
-      }
-    }
-
-    if (e.t !== 'n' && (tags.building || tags['building:part'])) {
-      ringsOf(e).forEach((ring, index) => {
-        const id = index === 0 ? appId(e) : `${appId(e)}-${index}`
-        const draft = draftBuilding(id, ring, tags, proj)
-        if (draft) drafts.push(draft)
-      })
-    }
-  }
-
-  inferRoofs(spots, drafts, proj)
-
-  return {
-    spots,
-    buildings: dropShellsWithParts(drafts, proj),
-    trees,
-    attractors,
-    parks,
-    meta: {
-      sourceLabel: `OpenStreetMap（${opts.live ? 'Overpass API でライブ取得' : 'アプリ同梱のスナップショット'}）`,
-      attribution: '© OpenStreetMap contributors (ODbL)',
-      asOf: data.osmBase ?? data.fetchedAt,
-      live: opts.live,
-    },
-  }
-}
-
-/** 建物の高さの出どころ別の件数 */
-export function heightStats(buildings: Building[]): Record<Building['heightSource'], number> {
-  const counts: Record<Building['heightSource'], number> = { measured: 0, levels: 0, assumed: 0, plateau: 0 }
-  buildings.forEach((b) => counts[b.heightSource]++)
-  return counts
+  const a=attractorOf(e,t,p);if(a)attractors.push(a)
+ }
+ // 屋根が不明な地点: 建物や屋根の外形の中にあれば「屋根あり（推定）」
+ const shapes=buildings.map(b=>({b,ring:b.footprint.map(p=>proj.toXY(p))}))
+ for(const sp of spots){
+  if(sp.roof!=='unknown')continue
+  const q:XY=proj.toXY(sp.position),hit=shapes.find(x=>pointInRing(q,x.ring))
+  if(hit){sp.roof='yes';sp.roofSource=hit.b.kind==='roof'?'roof-polygon':'inside-building'}
+ }
+ return {spots,buildings,trees,parks,attractors,meta:{source:raw.source??'OpenStreetMap',sourceLabel:opts.live?'OSM ライブ取得':'OSM 同梱データ',attribution:'© OpenStreetMap contributors (ODbL 1.0)',asOf:raw.osmBase??null,fetchedAt:raw.fetchedAt??null,live:opts.live,heightSources:s}}
 }

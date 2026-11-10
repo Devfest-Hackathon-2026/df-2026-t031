@@ -1,38 +1,26 @@
-# env
+# 秘密情報（キーは .env に置き、コミットしない）
 .env
 .env.*
 !.env.example
-
-# node
-node_modules/
-.next/
-out/
-dist/
-build/
-*.log
-
-# python
-__pycache__/
-*.pyc
-.venv/
-
-# firebase / gcloud
-.firebase/
-*-debug.log
 service-account*.json
-
-# os / editor
-.DS_Store
-.vscode/
-.idea/
-
-# 個人のSites連携・署名・生成物
-.openai/
-*.apk
-*.aab
 *.jks
 *.keystore
 local.properties
+# 依存関係・生成物
+node_modules/
+dist/
+build/
 coverage/
 playwright-report/
+*.log
+*.apk
+*.aab
+# Firebase・エディター・OS
+.firebase/
+.vscode/
+.idea/
+.DS_Store
 Thumbs.db
+.openai/
+__pycache__/
+.venv/
