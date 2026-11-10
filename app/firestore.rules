@@ -1,19 +1,18 @@
 rules_version = '2';
+// 投稿の共有（src/lib/shared.ts）。匿名ログインした人だけが読み書きでき、自分の投稿だけ消せる。2026-11-10 作成
 service cloud.firestore {
- match /databases/{database}/documents {
-  match /epokuReports/{id} {
-   allow get: if request.auth != null;
-   allow list: if request.auth != null && request.query.limit != null && request.query.limit <= 250;
-   allow create: if request.auth != null
-    && request.resource.data.keys().hasOnly(['id','spotId','value','ownerUid','createdAt'])
-    && request.resource.data.ownerUid == request.auth.uid
-    && request.resource.data.id is string && request.resource.data.id.size() <= 150
-    && id == request.auth.uid + '_' + request.resource.data.id
-    && request.resource.data.spotId is string && request.resource.data.spotId.size() <= 150
-    && request.resource.data.value in ['sat','full','missing']
-    && request.resource.data.createdAt == request.time;
-   allow update: if false;
-   allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+  match /databases/{database}/documents {
+    match /epokuReports/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['id', 'spotId', 'value', 'ownerUid', 'createdAt'])
+        && request.resource.data.id == id
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.spotId is string && request.resource.data.spotId.size() <= 150
+        && request.resource.data.value in ['sat', 'full', 'missing', 'facility']
+        && request.resource.data.createdAt == request.time;
+      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow update: if false;
+    }
   }
- }
 }

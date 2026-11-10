@@ -68,7 +68,7 @@ const PATHS=new Set(['footway','pedestrian','path','steps','cycleway','corridor'
 export function createContext(context:CityContext){
  const root=new T.Group();root.name='city-context';const waters:T.BufferGeometry[]=[],sidewalks:T.BufferGeometry[]=[],roads:T.BufferGeometry[]=[],paths:T.BufferGeometry[]=[]
  for(const f of context.features??[]){if(f.points.length<2)continue
-  if(f.kind==='water'){const a=f.points[0],z=f.points[f.points.length-1];if(f.points.length>=4&&a[0]===z[0]&&a[1]===z[1]){const g=new T.ShapeGeometry(shapeFrom(f.points.map(([lat,lng])=>({lat,lng}))));g.rotateX(-Math.PI/2);g.translate(0,.01,0);g.deleteAttribute('uv');waters.push(g)}else waters.push(strip(f.points,12,.01));continue}
+  if(f.kind==='water'){const a=f.points[0],z=f.points[f.points.length-1];if(f.points.length>=4&&a[0]===z[0]&&a[1]===z[1]){const g=new T.ShapeGeometry(shapeFrom(f.points.map(([lat,lng])=>({lat,lng}))));g.rotateX(-Math.PI/2);g.translate(0,.01,0);g.deleteAttribute('uv');waters.push(g.toNonIndexed());g.dispose()}else waters.push(strip(f.points,12,.01));continue}
   if(f.kind!=='road')continue
   const t=f.roadType??''
   if(f.sidewalk||t==='footway'&&f.sidewalk!==false&&PATHS.has(t)&&f.points.length<3)sidewalks.push(strip(f.points,3,.05))

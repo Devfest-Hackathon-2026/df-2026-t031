@@ -4,6 +4,7 @@ import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;
 import androidx.activity.OnBackPressedCallback;
 
+// Android の戻るボタン: 画面側で開いているもの（モーダル・メニュー・ルート・一覧）があれば閉じ、なければアプリを裏に回す。2026-11-10 に雛形を作り直し
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
