@@ -1,56 +1,33 @@
-/**
- * アプリ全体で使う型。ここは Node（server/・scripts/）からも読むので、型以外のものは置かない。
- */
-
-export interface LatLng {
-  lat: number
-  lng: number
-}
-
-export interface Bounds {
-  south: number
-  west: number
-  north: number
-  east: number
-}
-
-/** エリア中心からの距離（m）。x=東、y=北 */
-export interface XY {
-  x: number
-  y: number
-}
-
-// ───────── 地点 ─────────
-
-/** 地点の種類。bench / shelter / picnic は「座れる場所」 */
-export type SpotKind = 'bench' | 'shelter' | 'picnic' | 'toilet' | 'trash' | 'water' | 'indoor'
-
+// アプリ全体で使う型。2026-11-10 に開発期間内のコードとして書き直し（期間中に足した項目はそのまま残す）
+export interface LatLng {lat: number; lng: number}
+/** 原点からの平面座標（m）。x は東、y は北 */
+export interface XY {x: number; y: number}
 export type TriState = 'yes' | 'no' | 'unknown'
+export type DayType = 'weekday' | 'weekend' | 'holiday'
 
-/**
- * データの出どころ。
- * - osm: OpenStreetMap（同梱スナップショット or ライブ取得）
- * - places: Google Places API（Google の地図で表示するときだけ使う）
- * - user: この端末で利用者が登録した
- * - shared: 共有データベース（Firestore）で他の利用者が登録した
- */
-export type SpotOrigin = 'osm' | 'places' | 'user' | 'shared'
-
-export type RoofSource = 'tag' | 'roof-polygon' | 'inside-building' | 'kind' | 'user'
-
+export type SpotKind = 'bench' | 'shelter' | 'picnic' | 'toilet' | 'trash' | 'water' | 'indoor'
 export interface Spot {
   id: string
-  kind: SpotKind
-  /** 名前（OSM の多くのベンチには名前がない） */
+  /** 名前が分からない地点は null（画面では近くの目印から呼び名を作る） */
   name: string | null
+  kind: SpotKind
   position: LatLng
-  origin: SpotOrigin
-  /** 席数。null は不明 */
-  seats: number | null
   roof: TriState
-  roofSource: RoofSource | null
+  /** 屋根の情報の出どころ。tag=OSMのタグ、inside-building=建物の中、roof-polygon=屋根の形の中（どちらも推定）、user=投稿者 */
+  roofSource: 'tag' | 'inside-building' | 'roof-polygon' | 'user' | null
+  /** 座れる人数の目安。分からなければ null（計算では仮定の値を使う） */
+  seats: number | null
   backrest: TriState
-  wheelchair: 'yes' | 'limited' | 'no' | 'unknown'
+  /** 車いすで使えるか。limited = 一部のみ */
+  wheelchair: TriState | 'limited'
+  /** 利用条件（営業時間・利用者限定など）。OSM の access / opening_hours から */
+  access?: string
+  /** 説明（利用条件・営業時間など） */
+  description?: string
+  /** ユーザーが書いたメモ（ゴミ箱の「捨てられる物」など） */
+  note?: string
+  origin: 'osm' | 'user'
+  createdAt?: string
   /** RC-0: 冷房・段差なし・多目的トイレ。未設定は「未確認」として扱う */
   cooling?: TriState
   stepFree?: TriState
@@ -58,138 +35,72 @@ export interface Spot {
   /** 情報の出どころと現地確認した日時（RC-0・RC-4） */
   infoSource?: 'osm' | 'field-check' | 'official' | 'user'
   verifiedAt?: string
-  /** ゴミ箱の補足（ペットボトル回収など） */
-  note?: string
-  /** 元データへの参照（"node/123" など） */
-  ref?: string
-  photoId?: string
-  description?: string
-  createdAt?: string
-  ownerUid?: string
 }
 
-/** 建物（または建物の一部・屋根だけの構造物）。高さの根拠を必ず持つ */
 export interface Building {
   id: string
-  kind: 'building' | 'part' | 'roof'
+  /** building = 建物、roof = 屋根だけの構造物（下を歩ける。影は落とすが中は屋根の下） */
+  kind: 'building' | 'roof'
   footprint: LatLng[]
-  /** 上端の高さ（m） */
+  /** 地面から屋根までの高さ（m） */
   height: number
-  /** 下端の高さ（m）。地面から立っていれば 0 */
+  /** 下層が空いている建物の、下端の高さ（m）。通常は 0 */
   minHeight: number
-  /** measured=高さタグ / levels=階数から推定 / assumed=仮定値 */
   heightSource: 'measured' | 'levels' | 'assumed' | 'plateau'
   name?: string
 }
-
-export interface Tree {
-  id: string
-  position: LatLng
-  height: number
-  crownRadius: number
-  heightSource: 'measured' | 'assumed'
-}
-
-/** 人を集める場所（駅・観光地・商業施設・公園）。空席確率の「人通り」に使う */
-export interface Attractor {
-  id: string
-  kind: 'station' | 'tourism' | 'mall' | 'park'
-  name: string | null
-  position: LatLng
-}
-
-export interface ParkArea {
-  id: string
-  name: string | null
-  ring: LatLng[]
-}
+export interface Tree {id: string; position: LatLng; height: number; crownRadius: number}
+export interface Park {id: string; ring: LatLng[]; name?: string}
+/** 人が集まる場所（駅・商業施設・観光地）。空席の「人通り」と地点の呼び名に使う */
+export interface Attractor {id: string; name: string; position: LatLng; weight: number; kind: 'station' | 'mall' | 'sight' | 'other'}
 
 export interface AreaDataset {
   spots: Spot[]
   buildings: Building[]
   trees: Tree[]
+  parks: Park[]
   attractors: Attractor[]
-  parks: ParkArea[]
   meta: {
-    /** 画面に出す取得元の説明 */
+    source: string
     sourceLabel: string
     attribution: string
-    /** データの基準時刻（ISO） */
+    /** OSM のデータ時点（ISO） */
     asOf: string | null
+    fetchedAt: string | null
     live: boolean
+    heightSources: Record<Building['heightSource'], number>
     plateauBuildings?: number
   }
 }
 
-// ───────── 天気 ─────────
-
-export type WeatherCondition = 'clear' | 'partly-cloudy' | 'cloudy' | 'fog' | 'rain' | 'heavy-rain' | 'snow' | 'unknown'
-
-export interface WeatherHour {
-  /** その時間帯の開始時刻（ISO） */
-  time: string
-  condition: WeatherCondition
-  temperatureC: number
-  humidity: number | null
-  precipitationProbability: number | null
-  /** 日射量（W/m²）。暑さ指数の推定に使う */
-  solarRadiation: number | null
-  windSpeed: number | null
-}
-
-export interface WeatherForecast {
-  hours: WeatherHour[]
-  sourceLabel: string
-  isDemo: boolean
-  fetchedAt: string
-}
-
-// ───────── イベント ─────────
-
-export interface AreaEvent {
-  id: string
-  name: string
-  position: LatLng
-  /** 0=日〜6=土。dates があればそちらを優先 */
-  daysOfWeek: number[]
-  /** "2026-11-08" など。指定日だけ開催 */
-  dates: string[]
-  startMin: number
-  endMin: number
-  radiusM: number
-  /** 混雑への影響（0〜1.5 程度） */
-  intensity: number
-  isDemo: boolean
-}
-
-// ───────── 日陰 ─────────
-
 export interface SunPosition {
-  /** 高度（度）。負なら地平線の下 */
+  /** 高度（度）。地平線が 0 */
   altitude: number
-  /** 方位（度・北から時計回り） */
+  /** 方位（度）。北が 0、東が 90 */
   azimuth: number
 }
 
-/** sun=日なた / building=建物の影 / tree=木陰（推定） / roof=屋根の下 / night=日が出ていない */
 /** cloud = くもり・雨などで直射日光がない（建物の影に関係なく、街全体が日陰になる） */
 export type ShadeState = 'sun' | 'building' | 'tree' | 'roof' | 'night' | 'cloud'
+export interface ShadeTimeline {startMin: number; stepMin: number; states: ShadeState[]}
 
-export interface ShadeTimeline {
-  spotId: string
-  dateKey: string
-  /** 最初の時刻（JST の 0 時からの分） */
-  startMin: number
-  stepMin: number
-  states: ShadeState[]
+export type WeatherCondition = 'clear' | 'partly-cloudy' | 'cloudy' | 'fog' | 'rain' | 'heavy-rain' | 'snow' | 'unknown'
+export interface WeatherNow {
+  temperatureC: number
+  condition: WeatherCondition
+  humidity: number | null
+  precipitationProbability: number | null
+  windSpeedMs: number | null
 }
+export interface WeatherHour extends WeatherNow {time: string}
+export interface WeatherForecast {source: 'open-meteo' | 'google' | 'demo'; fetchedAt: string; hours: WeatherHour[]}
 
-// ───────── 投稿 ─────────
+/** 混みやすくなる催し（花火・イベントなど）。days が無ければ毎日 */
+export interface AreaEvent {id: string; name: string; position: LatLng; radiusM: number; startMin: number; endMin: number; multiplier: number; days?: string[]}
 
-/** sat=座れた / full=満席だった / missing=見当たらなかった */
 /** facility = 設備が使えなかった（冷房が止まっていた・閉まっていた・トイレ使用不可など。RC-6）。空席の計算には使わない */
 export type SeatReportValue = 'sat' | 'full' | 'missing' | 'facility'
-
+export interface SeatReport {id: string; spotId: string; value: SeatReportValue; reportedAt: string; origin: 'local' | 'shared'; features?: SeatFeatureSnapshot}
 /** 現地での日陰の答え合わせ。predicted は記録した時点のモデルの判定 */
 export interface ShadeCheck {
   id: string
@@ -197,18 +108,6 @@ export interface ShadeCheck {
   observed: 'shade' | 'sun'
   predicted: 'shade' | 'sun'
   checkedAt: string
-}
-
-export interface SeatReport {
-  id: string
-  spotId: string
-  value: SeatReportValue
-  reportedAt: string
-  /** local=この端末 / shared=共有データベース / demo=デモ投稿（実際の投稿ではない） */
-  origin: 'local' | 'shared' | 'demo'
-  /** 投稿したときの予測の入力（あとで係数を学習するためのデータ） */
-  features?: SeatFeatureSnapshot
-  ownerUid?: string
 }
 
 /** 地点の通報（SHADE SPOT の「この投稿を通報」）。3 件集まった地点は一覧と地図に出さない */
@@ -221,6 +120,7 @@ export interface SpotFlag {
 }
 export const FLAG_HIDE_COUNT = 3
 
+/** 投稿したときの予測の入力。あとで「実際との差」から地点ごとの補正を学ぶ */
 export interface SeatFeatureSnapshot {
   hour: number
   dayType: DayType
@@ -233,17 +133,12 @@ export interface SeatFeatureSnapshot {
   aiProbability: number | null
 }
 
-// ───────── 空席確率 ─────────
-
-export type DayType = 'weekday' | 'weekend' | 'holiday'
-
 export interface SeatFactor {
   key: 'time' | 'weather' | 'wet' | 'heat' | 'dark' | 'event' | 'location' | 'nearby' | 'seats'
   label: string
-  /** 混み具合への倍率（1 より大きいと混みやすい）。席数の行は 1 */
+  /** 1 席が埋まっている見込み（ρ）に掛ける倍率 */
   multiplier: number
 }
-
 export type ConfidenceLevel = 'high' | 'mid' | 'low'
 
 export interface SeatConfidence {
@@ -258,22 +153,21 @@ export interface SeatConfidence {
 }
 
 export interface SeatPrediction {
-  spotId: string
   /** ルールだけの空席確率（過去の投稿による補正の前） */
   rule: number
   /** 過去の投稿（90 分より前）から学んだ補正。似た曜日・時間帯の投稿がなければ null */
   history: { offset: number; n: number } | null
   /** AI 予測（ルール＋過去投稿の補正。直近の投稿は含まない）の空席確率 0〜1 */
   ai: number
-  /** 1 席あたりの埋まりやすさ 0〜1 */
-  occupancy: number
-  effectiveSeats: number
-  seatsAssumed: boolean
-  factors: SeatFactor[]
-  /** 直近の投稿（新しい順・90 分以内） */
-  posts: { value: SeatReportValue; minutesAgo: number; origin: SeatReport['origin'] }[]
-  /** 投稿で補正した値。投稿がなければ ai と同じ */
+  /** 直近の投稿を混ぜた空席確率 0〜1。地図のピンの色と一覧に使う */
   combined: number
+  /** 1 席が埋まっている見込み */
+  occupancy: number
+  /** 計算に使った席数（仮定を含む） */
+  seats: {effective: number; assumed: boolean}
+  factors: SeatFactor[]
+  /** その地点の直近の投稿 */
+  posts: {value: SeatReportValue; minutesAgo: number}[]
   /** combined に使った近くの地点（150m 以内）の直近の投稿の件数 */
   nearbyPosts: number
   confidence: SeatConfidence

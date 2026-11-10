@@ -1,0 +1,18 @@
+# 同梱の地図データを OpenStreetMap から取り直し、成果物（Artifacts）に置く。2026-11-10 作成
+name: fetch osm data
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/replace-pre-period-code]
+    paths: [app/scripts/fetch-osm.ts, app/src/domain/osmQuery.ts, .github/workflows/fetch-osm.yml]
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: app}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 24}
+      - run: node scripts/fetch-osm.ts
+      - uses: actions/upload-artifact@v4
+        with: {name: osm-data, path: "app/public/data/area-*.json"}

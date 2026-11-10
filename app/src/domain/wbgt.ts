@@ -1,55 +1,17 @@
-import type { WeatherCondition, WeatherHour } from './types.ts'
-
-/**
- * 暑さ指数（WBGT）の推定。
- * 気温・湿度・日射量・風速からの簡易推定式（小野・登内 2014 の式とされるもの。係数は実装前に原典で要確認）：
- *   WBGT = 0.735·Ta + 0.0374·RH + 0.00292·Ta·RH + 7.619·SR − 4.557·SR² − 0.0572·WS − 4.064
- *   Ta: 気温[℃] RH: 相対湿度[%] SR: 日射量[kW/m²] WS: 風速[m/s]
- * 公式の予測値・実況値は環境省「熱中症予防情報サイト」の電子情報提供サービス（申し込み制）で得られる。
- */
-export function wbgtFormula(ta: number, rh: number, srKw: number, ws: number): number {
-  return 0.735 * ta + 0.0374 * rh + 0.00292 * ta * rh + 7.619 * srKw - 4.557 * srKw * srKw - 0.0572 * ws - 4.064
-}
-
-const CLOUD_FACTOR: Record<WeatherCondition, number> = {
-  clear: 1,
-  'partly-cloudy': 0.7,
-  cloudy: 0.35,
-  fog: 0.3,
-  rain: 0.2,
-  'heavy-rain': 0.1,
-  snow: 0.2,
-  unknown: 0.6,
-}
-
-/** 日射量（kW/m²）の目安。天気と太陽の高度から */
-export function estimateSolarKw(condition: WeatherCondition, sunAltitudeDeg: number): number {
-  if (sunAltitudeDeg <= 0) return 0
-  return 1.05 * Math.sin((sunAltitudeDeg * Math.PI) / 180) * CLOUD_FACTOR[condition]
-}
-
-/** 日なたの暑さ指数の推定値 */
-export function estimateWbgt(w: WeatherHour, sunAltitudeDeg: number): number {
-  const sr = w.solarRadiation !== null ? Math.max(0, w.solarRadiation) / 1000 : estimateSolarKw(w.condition, sunAltitudeDeg)
-  const v = wbgtFormula(w.temperatureC, w.humidity ?? 60, Math.min(1.2, sr), w.windSpeed ?? 2)
-  return Math.round(v * 10) / 10
-}
-
-export type WbgtLevel = 'danger' | 'severe' | 'warning' | 'caution' | 'safe'
-
-/** 日本生気象学会の指針の区分 */
-export function wbgtLevel(v: number): WbgtLevel {
-  if (v >= 31) return 'danger'
-  if (v >= 28) return 'severe'
-  if (v >= 25) return 'warning'
-  if (v >= 21) return 'caution'
-  return 'safe'
-}
-
-export const WBGT_LABEL: Record<WbgtLevel, string> = {
-  danger: '危険',
-  severe: '厳重警戒',
-  warning: '警戒',
-  caution: '注意',
-  safe: 'ほぼ安全',
+// 暑さ指数（WBGT）のおおよその推定。気温・湿度・日射（太陽高度と天気）から求める参考値で、環境省の実況値や予報ではない
+import type {WeatherNow} from './types.ts'
+export type WbgtLevel='safe'|'caution'|'warning'|'severe'|'danger'
+export const WBGT_LABEL:Record<WbgtLevel,string>={safe:'ほぼ安全',caution:'注意',warning:'警戒',severe:'厳重警戒',danger:'危険'}
+/** 環境省の指針の区切り（21・25・28・31） */
+export const wbgtLevel=(w:number):WbgtLevel=>w>=31?'danger':w>=28?'severe':w>=25?'warning':w>=21?'caution':'safe'
+const SKY:Record<string,number>={clear:1,'partly-cloudy':.7,cloudy:.3,fog:.2,rain:.1,'heavy-rain':.05,snow:.1,unknown:.6}
+/** 日なたの WBGT の推定（℃・小数1桁）。気温がなければ null */
+export function estimateWbgt(w:Pick<WeatherNow,'temperatureC'|'condition'>&{humidity?:number|null},sunAltitude:number):number|null{
+ const t=w.temperatureC;if(t===null||t===undefined||!Number.isFinite(t))return null
+ const rh=Math.max(5,Math.min(100,w.humidity??60))
+ // 湿球温度の近似（Stull 2011）
+ const tw=t*Math.atan(.151977*Math.sqrt(rh+8.313659))+Math.atan(t+rh)-Math.atan(rh-1.676331)+.00391838*rh**1.5*Math.atan(.023101*rh)-4.686035
+ const sky=SKY[w.condition]??.6,solar=sunAltitude>0?Math.sin(sunAltitude*Math.PI/180)*sky:0
+ const globe=t+solar*12 // 黒球温度のおおよそ（日射が強いほど高い）
+ return Math.round((.7*tw+.2*globe+.1*t)*10)/10
 }
