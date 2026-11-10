@@ -5,9 +5,9 @@ export const WBGT_LABEL:Record<WbgtLevel,string>={safe:'ほぼ安全',caution:'�
 /** 環境省の指針の区切り（21・25・28・31） */
 export const wbgtLevel=(w:number):WbgtLevel=>w>=31?'danger':w>=28?'severe':w>=25?'warning':w>=21?'caution':'safe'
 const SKY:Record<string,number>={clear:1,'partly-cloudy':.7,cloudy:.3,fog:.2,rain:.1,'heavy-rain':.05,snow:.1,unknown:.6}
-/** 日なたの WBGT の推定（℃・小数1桁）。気温がなければ null */
-export function estimateWbgt(w:Pick<WeatherNow,'temperatureC'|'condition'>&{humidity?:number|null},sunAltitude:number):number|null{
- const t=w.temperatureC;if(t===null||t===undefined||!Number.isFinite(t))return null
+/** 日なたの WBGT の推定（℃・小数1桁）。気温が分からなければ 20℃ とみなす */
+export function estimateWbgt(w:Pick<WeatherNow,'temperatureC'|'condition'>&{humidity?:number|null},sunAltitude:number):number{
+ const t=Number.isFinite(w.temperatureC)?w.temperatureC:20
  const rh=Math.max(5,Math.min(100,w.humidity??60))
  // 湿球温度の近似（Stull 2011）
  const tw=t*Math.atan(.151977*Math.sqrt(rh+8.313659))+Math.atan(t+rh)-Math.atan(rh-1.676331)+.00391838*rh**1.5*Math.atan(.023101*rh)-4.686035

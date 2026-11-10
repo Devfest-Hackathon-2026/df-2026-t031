@@ -14,3 +14,7 @@ export class LocalProjection{
 export function pointInRing(p:XY,ring:XY[]){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside}return inside}
 /** 多角形の重心（頂点の平均） */
 export const centroidXY=(ring:XY[]):XY=>({x:ring.reduce((n,p)=>n+p.x,0)/Math.max(1,ring.length),y:ring.reduce((n,p)=>n+p.y,0)/Math.max(1,ring.length)})
+/** 徒歩の分数（分速 80m） */
+export const walkMinutes=(m:number)=>Math.max(1,Math.round(m/80))
+/** 距離の表示（1km 未満は 10m 単位） */
+export const formatDistance=(m:number)=>m<1000?`${Math.round(m/10)*10}m`:`${(m/1000).toFixed(1)}km`

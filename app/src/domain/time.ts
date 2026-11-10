@@ -16,3 +16,5 @@ const WEEK='日月火水木金土'
 export function formatDateJa(day:string){const [y,m,d]=day.split('-').map(Number),w=new Date(Date.UTC(y,m-1,d)).getUTCDay();return `${m}月${d}日（${WEEK[w]}）`}
 /** 今日の JST の日付キー */
 export const todayKey=(now=new Date())=>jstParts(now).dateKey
+/** 「3分前」「2時間前」 */
+export const formatAgo=(minutes:number)=>minutes<1?'たった今':minutes<60?`${minutes}分前`:minutes<1440?`${Math.floor(minutes/60)}時間前`:`${Math.floor(minutes/1440)}日前`
