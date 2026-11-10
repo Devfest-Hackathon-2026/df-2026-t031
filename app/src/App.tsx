@@ -1,72 +1,165 @@
-import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type PointerEvent as ReactPointerEvent,type MouseEvent as ReactMouseEvent} from 'react'
-import {Leaf,Search,SlidersHorizontal,Heart,MapPin,Sun,Cloud,ArrowUpRight,ArrowRight,Plus,X,Check,Clock,Info,Download,Undo2,House,Armchair,Trash2,Accessibility,Droplets,RefreshCw,LocateFixed,Layers,Sparkles,Play,Pause,ChevronLeft,ChevronRight} from 'lucide-react'
-import {AREA_CENTER,AREA_BOUNDS,AREA_NAME,DEMO_USER_LOCATION,EXPLORER_FOCUS,inBounds,AREA_RADIUS_M} from './domain/area.ts'
-import {parseOsm,heightStats} from './domain/osm.ts'
-import {buildOverpassQuery,slimOverpass,type SlimOsm} from './domain/osmQuery.ts'
-import {haversineM,formatDistance,walkMinutes} from './domain/geo.ts'
-import {jstDate,jstParts,dayTypeOf,formatTime,formatDateJa,formatAgo} from './domain/time.ts'
-import {ShadeEngine,SHADE_LABEL,COVERAGE_LABEL,isShaded,shadeWindows,weatherShade,OVERCAST,type ShadeCoverage} from './domain/shade.ts'
-import {estimateWbgt,wbgtLevel,WBGT_LABEL} from './domain/wbgt.ts'
-import {FLAG_HIDE_COUNT,type SpotFlagReason} from './domain/types.ts'
-import {Flag,Ellipsis,Navigation,Footprints} from 'lucide-react'
-import {buildWalkGraph,findWalkRoute,routeShade,shadeFirstCost,type WalkGraph,type WalkFeature,type RouteSegment} from './domain/route.ts'
-import {rankArrival,spreadPicks,shadeSpan,arrivalReason,preferShadeFor,hitRate} from './domain/arrival.ts'
-import {ChevronRight as Next} from 'lucide-react'
-import {sunPosition,sunTimes} from './domain/sun.ts'
-import {predictSeat,locationFactor,isSeatSpot,pct,postsApply,seatLevel,SEAT_LEVEL_LABEL,nearestDistanceMap,TOILET_NEAR_M,seatNeighborMap,hoursSinceRain,CONFIDENCE_LABEL,type SeatLevel} from './domain/seat.ts'
-import type {SunPosition,XY,AreaDataset,Spot,LatLng,WeatherCondition,WeatherForecast,AreaEvent,SeatReport,ShadeState,SeatPrediction} from './domain/types.ts'
-import MapView,{spotName,kindIcons,KIND_LABEL,type MapMode} from './components/MapView.tsx'
-import {readSaved,persist,exportSaved,validateSaved,EMPTY,type SavedData} from './lib/storage.ts'
-import {demoWeather,openMeteo,googleWeather,weatherAt,WEATHER_LABEL} from './lib/weather.ts'
-import {enableSharedReports,type ReportConnection} from './lib/shared.ts'
+// 2026-11-10 期間内に書き直し（読み込み・保存・投稿・設定まわりの組み立てを整理）。
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  Accessibility, ArrowRight, ArrowUpRight, Armchair, Check, ChevronLeft, ChevronRight, ChevronRight as Next, Clock, Cloud,
+  Download, Droplets, Ellipsis, Flag, Footprints, Heart, HeartPulse, House, Info, Layers, Leaf, LocateFixed, MapPin, Menu,
+  Navigation, Pause, PencilLine, Play, Plus, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Sparkles, Sun, Trash2, Undo2, X,
+} from 'lucide-react'
+import { AREA_CENTER, AREA_NAME, AREA_RADIUS_M, DEMO_USER_LOCATION, EXPLORER_FOCUS, inBounds } from './domain/area.ts'
+import { heightStats } from './domain/osm.ts'
+import { formatDistance, haversineM, walkMinutes } from './domain/geo.ts'
+import { dayTypeOf, formatAgo, formatDateJa, formatTime, jstDate, jstParts } from './domain/time.ts'
+import { COVERAGE_LABEL, isShaded, OVERCAST, SHADE_LABEL, ShadeEngine, shadeWindows, weatherShade, type ShadeCoverage } from './domain/shade.ts'
+import { estimateWbgt, WBGT_LABEL, wbgtLevel } from './domain/wbgt.ts'
+import { FLAG_HIDE_COUNT, type SpotFlagReason } from './domain/types.ts'
+import { buildWalkGraph, findWalkRoute, routeShade, shadeFirstCost, type RouteSegment, type WalkFeature, type WalkGraph } from './domain/route.ts'
+import { arrivalReason, hitRate, preferShadeFor, rankArrival, shadeSpan, spreadPicks } from './domain/arrival.ts'
+import { sunPosition, sunTimes } from './domain/sun.ts'
+import {
+  CONFIDENCE_LABEL, hoursSinceRain, isSeatSpot, locationFactor, nearestDistanceMap, pct, postsApply, predictSeat,
+  SEAT_LEVEL_LABEL, seatLevel, seatNeighborMap, TOILET_NEAR_M, type SeatLevel,
+} from './domain/seat.ts'
+import type { AreaDataset, AreaEvent, LatLng, SeatPrediction, SeatReport, ShadeState, Spot, SunPosition, WeatherCondition, WeatherForecast, XY } from './domain/types.ts'
+import { rankRestSpots, restReasons, STATUS_LABEL, walkLimit, type RestItem, type RestReason } from './domain/restRank.ts'
+import { DEFAULT_NEED, FATIGUE_LABEL as NEED_FATIGUE, HOT_WBGT, SAFETY_GUIDANCE, shouldSuggestRest, WALKED_LABEL, WISH_LABEL, type RestNeed } from './domain/restNeed.ts'
+import MapView, { KIND_LABEL, kindIcons, spotName, type MapMode } from './components/MapView.tsx'
+import Modal from './components/Modal.tsx'
+import { DataSection, DeleteDataModal, MapKeySection } from './components/SettingsSections.tsx'
 import SolarPanel from './components/SolarPanel.tsx'
 import EdgeScrubbers from './components/EdgeScrubbers.tsx'
 import MenuDrawer from './components/MenuDrawer.tsx'
-import {rankRestSpots,restReasons,walkLimit,STATUS_LABEL,type RestItem,type RestReason} from './domain/restRank.ts'
-import {ShieldAlert} from 'lucide-react'
-import {PencilLine,HeartPulse} from 'lucide-react'
-import {Menu} from 'lucide-react'
-import {apiUrl} from './lib/api.ts'
-import {RestSheet,RestSettings,fetchGoogleStatus,type GoogleStatus} from './components/RestSheet.tsx'
-import {RestBanner} from './components/RestBanner.tsx'
-import {loadRestPrefs,saveRestPrefs,bannerState,snooze,type RestPrefs} from './lib/restPrefs.ts'
-import {shouldSuggestRest,HOT_WBGT,DEFAULT_NEED,FATIGUE_LABEL as NEED_FATIGUE,WALKED_LABEL,WISH_LABEL,SAFETY_GUIDANCE,type RestNeed} from './domain/restNeed.ts'
-import {withPlateau,type PlateauSubset} from './domain/plateau.ts'
+import { RestSheet, RestSettings, fetchGoogleStatus, type GoogleStatus } from './components/RestSheet.tsx'
+import { RestBanner } from './components/RestBanner.tsx'
+import { EMPTY, exportSaved, persist, readSaved, validateSaved, type SavedData } from './lib/storage.ts'
+import { demoWeather, googleWeather, openMeteo, weatherAt, WEATHER_LABEL } from './lib/weather.ts'
+import { enableSharedReports, type ReportConnection } from './lib/shared.ts'
+import { apiUrl } from './lib/api.ts'
+import { bannerState, loadRestPrefs, saveRestPrefs, snooze, type RestPrefs } from './lib/restPrefs.ts'
+import { fetchLiveDataset, loadAreaDataset } from './lib/loadArea.ts'
 
-function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){
- const ref=useRef<HTMLDialogElement>(null)
- useEffect(()=>{const el=ref.current!;el.showModal();return()=>{el.close()}},[])
- return <dialog ref={ref} className="modal" onCancel={onClose} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><header><h2>{title}</h2><button className="icon-button" aria-label="閉じる" onClick={onClose}><X size={21}/></button></header>{children}</dialog>
+/** 地点データを読み終えるまでの画面。読めたら Explorer に渡す */
+export default function App() {
+  const [dataset, setDataset] = useState<AreaDataset | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    loadAreaDataset(controller.signal)
+      .then((loaded) => {
+        if (!controller.signal.aborted) setDataset(loaded)
+      })
+      .catch((error: Error) => {
+        if (error.name !== 'AbortError') setLoadError(error.message)
+      })
+    return () => controller.abort()
+  }, [attempt])
+
+  if (dataset) return <Explorer initialDataset={dataset} />
+
+  const retry = () => {
+    setLoadError('')
+    setAttempt((n) => n + 1)
+  }
+  return (
+    <main className="loading">
+      <div className="brand">
+        <Leaf />
+        Rest Care<span>ひと休みを、もっと気軽に。</span>
+      </div>
+      {loadError ? (
+        <>
+          <p>{loadError}</p>
+          <button onClick={retry}>もう一度読み込む</button>
+        </>
+      ) : (
+        <p>まちの休憩スポットを読み込んでいます…</p>
+      )}
+    </main>
+  )
 }
-export default function App(){
- const [dataset,setDataset]=useState<AreaDataset|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0)
- useEffect(()=>{const controller=new AbortController();fetch(`${import.meta.env.BASE_URL}data/area-osm.json`,{signal:controller.signal}).then(r=>{if(!r.ok)throw Error('地点データを読めませんでした。');return r.json()}).then(async(raw:SlimOsm)=>{const d=parseOsm(raw,{origin:AREA_CENTER,live:false});try{const r=await fetch(`${import.meta.env.BASE_URL}data/plateau-nishi.json`,{signal:controller.signal});if(!r.ok)throw Error();return withPlateau(d,await r.json() as PlateauSubset)}catch{return d}}).then(d=>{if(!controller.signal.aborted)setDataset(d)}).catch(e=>{if(e.name!=='AbortError')setError(e.message)});return()=>controller.abort()},[reload])
- if(!dataset)return <main className="loading"><div className="brand"><Leaf/>Rest Care<span>ひと休みを、もっと気軽に。</span></div>{error?<><p>{error}</p><button onClick={()=>{setError('');setReload(x=>x+1)}}>もう一度読み込む</button></>:<p>まちの休憩スポットを読み込んでいます…</p>}</main>
- return <Explorer initialDataset={dataset}/>
+/** 「イベントのデモ」を入れたときに置く、広場の催し（10:00〜18:00・半径 650m） */
+const DEMO_EVENT: AreaEvent = {
+  id: 'demo-event',
+  name: '広場イベント（デモ）',
+  position: { lat: 35.4558, lng: 139.6363 },
+  daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+  dates: [],
+  startMin: 10 * 60,
+  endMin: 18 * 60,
+  radiusM: 650,
+  intensity: 1,
+  isDemo: true,
 }
+
 type Result={spot:Spot;distance:number;shade:ShadeState;coverage:ShadeCoverage;prediction:SeatPrediction|null}
 const segmentLength=(s:RouteSegment)=>s.points.reduce((sum,p,i)=>i?sum+haversineM(s.points[i-1],p):0,0)
-function Explorer({initialDataset}:{initialDataset:AreaDataset}){
- const initial=useMemo(readSaved,[])
+/** 地図・候補・詳細・設定をまとめた画面本体 */
+function Explorer({ initialDataset }: { initialDataset: AreaDataset }) {
+  // 端末に保存した内容（読めなかったときは error に理由が入る）
+  const initial = useMemo(() => readSaved(), [])
  const [dataset,setDataset]=useState(initialDataset),[saved,setSaved]=useState(initial.data),[notice,setNotice]=useState(initial.error||''),[modal,setModal]=useState<'settings'|'about'|'add'|'delete'|'help'|'rest'|null>(null)
  const [query,setQuery]=useState(''),[category,setCategory]=useState('rest'),[shadedOnly,setShadedOnly]=useState(false),[roofOnly,setRoofOnly]=useState(false),[favoriteOnly,setFavoriteOnly]=useState(false),[range,setRange]=useState(2000),[sort,setSort]=useState('recommended'),[seatableOnly,setSeatableOnly]=useState(false),[toiletNear,setToiletNear]=useState(false)
- const current=jstParts(new Date()),[day,setDay]=useState(current.dateKey),[minutes,setMinutes]=useState(15*60+30),[temp,setTemp]=useState(24),[condition,setCondition]=useState<WeatherCondition>('clear'),[forecast,setForecast]=useState<WeatherForecast|null>(null),[eventDemo,setEventDemo]=useState(false)
- const [origin,setOrigin]=useState<LatLng>(DEMO_USER_LOCATION),[mode,setMode]=useState<MapMode>('model3d'),[mapKey,setMapKey]=useState(import.meta.env.VITE_GOOGLE_MAPS_API_KEY||''),[showShadow,setShowShadow]=useState(true),[adding,setAdding]=useState(false),[addPoint,setAddPoint]=useState<LatLng>(DEMO_USER_LOCATION)
+  // 表示する日時・天気。最初は今日の 15:30、気温 24℃ の晴れ（予報が取れたら予報を優先）
+  const [day, setDay] = useState(() => jstParts(new Date()).dateKey)
+  const [minutes, setMinutes] = useState(15 * 60 + 30)
+  const [temp, setTemp] = useState(24)
+  const [condition, setCondition] = useState<WeatherCondition>('clear')
+  const [forecast, setForecast] = useState<WeatherForecast | null>(null)
+  const [eventDemo, setEventDemo] = useState(false)
+  // 地図と出発地点
+  const [origin, setOrigin] = useState<LatLng>(DEMO_USER_LOCATION)
+  const [mode, setMode] = useState<MapMode>('model3d')
+  const [mapKey, setMapKey] = useState<string>(import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '')
+  const [showShadow, setShowShadow] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [addPoint, setAddPoint] = useState<LatLng>(DEMO_USER_LOCATION)
  const [selected,setSelected]=useState(()=>initialDataset.spots.filter(isSeatSpot).sort((a,b)=>haversineM(a.position,EXPLORER_FOCUS)-haversineM(b.position,EXPLORER_FOCUS))[0]?.id||''),[busy,setBusy]=useState(''),[explanation,setExplanation]=useState<{spotId:string;text:string;key:string}|null>(null),[now,setNow]=useState(new Date()),[shared,setShared]=useState<SeatReport[]>([]),[sharing,setSharing]=useState(false),[limit,setLimit]=useState(12)
  const [panel,setPanel]=useState<'sun'|'spots'>('sun'),[solarOpen,setSolarOpen]=useState(()=>innerWidth>760),[showPath,setShowPath]=useState(true),[playing,setPlaying]=useState(false),[placeMenu,setPlaceMenu]=useState(false),[addKind,setAddKind]=useState('bench')
  const [routeTo,setRouteTo]=useState<string|null>(null),[shadeFirst,setShadeFirst]=useState(true),[pickIndex,setPickIndex]=useState(0),[mainMenu,setMainMenu]=useState(false),[maxWalk,setMaxWalk]=useState(20),[spotView,setSpotView]=useState<'list'|'detail'>('detail'),[restNeed,setRestNeed]=useState<RestNeed>(()=>({...DEFAULT_NEED,wishes:loadRestPrefs().lastWishes})),[followTime,setFollowTime]=useState(false),[showLabels,setShowLabels]=useState(true),[nudgeHidden,setNudgeHidden]=useState(''),[showSun,setShowSun]=useState(false),[walkGraph,setWalkGraph]=useState<WalkGraph|null>(null)
  const [quality,setQuality]=useState<'balanced'|'light'>(()=>innerWidth<=760?'light':'balanced')
- const share=useRef<ReportConnection|null>(null),importRef=useRef<HTMLInputElement>(null)
- useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),30000);return()=>{clearInterval(timer);share.current?.close()}},[])
- useEffect(()=>{if(!playing)return;const timer=setInterval(()=>setMinutes(m=>m>=1140?300:m+10),600);return()=>clearInterval(timer)},[playing])
+  const share = useRef<ReportConnection | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
+  // 「いま」を 30 秒ごとに進める。画面を閉じるときは共有の接続も切る
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 30_000)
+    return () => {
+      clearInterval(tick)
+      share.current?.close()
+    }
+  }, [])
+  // 再生中は 0.6 秒ごとに 10 分進め、19:00 を過ぎたら 5:00 に戻す
+  useEffect(() => {
+    if (!playing) return
+    const step = setInterval(() => setMinutes((m) => (m >= 19 * 60 ? 5 * 60 : m + 10)), 600)
+    return () => clearInterval(step)
+  }, [playing])
  // 初めて開いたときだけ「使い方」を出す（保存できない環境では毎回は出さない）
  useEffect(()=>{try{if(!localStorage.getItem('epoku:help-seen'))setModal('help')}catch{}},[])
  const closeHelp=()=>{try{localStorage.setItem('epoku:help-seen','1')}catch{}setModal(null)}
- const notify=useCallback((message:string)=>setNotice(message),[])
- const commit=useCallback((next:SavedData)=>{try{persist(next);setSaved(next);return true}catch(e){notify((e as Error).message);return false}},[notify])
- const time=useMemo(()=>jstDate(day,minutes),[day,minutes]),sun=useMemo(()=>sunPosition(time,AREA_CENTER),[time]),engine=useMemo(()=>new ShadeEngine(dataset.buildings,dataset.trees,AREA_CENTER),[dataset])
- const weather=weatherAt(forecast,time)??demoWeather(day,minutes,temp,condition),weatherIsDemo=!weatherAt(forecast,time)
- const events:AreaEvent[]=useMemo(()=>eventDemo?[{id:'demo-event',name:'広場イベント（デモ）',position:{lat:35.4558,lng:139.6363},daysOfWeek:[0,1,2,3,4,5,6],dates:[],startMin:600,endMin:1080,radiusM:650,intensity:1,isDemo:true}]:[],[eventDemo])
+  const notify = useCallback((message: string) => setNotice(message), [])
+  /** 端末に保存して画面にも反映する。保存できなければ理由を出して false */
+  const commit = useCallback(
+    (next: SavedData) => {
+      try {
+        persist(next)
+      } catch (error) {
+        notify((error as Error).message)
+        return false
+      }
+      setSaved(next)
+      return true
+    },
+    [notify],
+  )
+  const time = useMemo(() => jstDate(day, minutes), [day, minutes])
+  const sun = useMemo(() => sunPosition(time, AREA_CENTER), [time])
+  const engine = useMemo(() => new ShadeEngine(dataset.buildings, dataset.trees, AREA_CENTER), [dataset])
+  // 予報にその時刻があれば予報、なければ手で選んだ気温・天気のデモ
+  const forecastHour = weatherAt(forecast, time)
+  const weatherIsDemo = !forecastHour
+  const weather = forecastHour ?? demoWeather(day, minutes, temp, condition)
+  const events = useMemo<AreaEvent[]>(() => (eventDemo ? [DEMO_EVENT] : []), [eventDemo])
  const wbgt=estimateWbgt(weather,sun.altitude)
  // 休憩の提案（RC-5）：歩き続けた時間はアプリを開いた時か最後に休憩した時から数える
  const [restPrefs,setRestPrefsState]=useState<RestPrefs>(loadRestPrefs),[walkStart,setWalkStart]=useState(()=>Date.now()),[walkDemo,setWalkDemo]=useState(0),[google,setGoogle]=useState<GoogleStatus|null>(null)
@@ -84,23 +177,39 @@ function Explorer({initialDataset}:{initialDataset:AreaDataset}){
  // 「休憩する」シートの入力（RC-1）で候補を選び直す（RC-3）。絞り込みや一覧ではなく、地図の上のカードに上位 3 件を出す
  const showRestSpots=(need:RestNeed)=>{setRestNeed(need);setModal(null);setPanel('sun');setRouteTo(null);setWalkStart(Date.now());setWalkDemo(0);notify(`いまの状態に合わせて、徒歩${walkLimit(need)}分以内を優先して候補を選びました。`)}
  const flagCount=useMemo(()=>{const m=new Map<string,number>();for(const f of saved.flags)m.set(f.spotId,(m.get(f.spotId)??0)+1);return m},[saved.flags])
- const spots=useMemo(()=>[...dataset.spots,...saved.spots],[dataset,saved.spots])
- const locations=useMemo(()=>new Map(spots.map(s=>[s.id,locationFactor(s,dataset.attractors)])),[spots,dataset])
+  // 同梱（またはライブ取得）の地点に、この端末で登録した地点を足す
+  const spots = useMemo(() => dataset.spots.concat(saved.spots), [dataset, saved.spots])
+  const locations = useMemo(() => {
+    const factors = new Map<string, ReturnType<typeof locationFactor>>()
+    for (const spot of spots) factors.set(spot.id, locationFactor(spot, dataset.attractors))
+    return factors
+  }, [spots, dataset])
  const toiletDistance=useMemo(()=>nearestDistanceMap(spots,spots.filter(s=>s.kind==='toilet')),[spots])
- const reports=useMemo(()=>[...saved.reports,...shared.filter(s=>!saved.reports.some(r=>r.id===s.id))],[saved.reports,shared])
+  // 端末の投稿を優先し、共有から届いた投稿は同じ id がないものだけ足す
+  const reports = useMemo(() => {
+    const localIds = new Set(saved.reports.map((r) => r.id))
+    return saved.reports.concat(shared.filter((r) => !localIds.has(r.id)))
+  }, [saved.reports, shared])
  const neighbors=useMemo(()=>seatNeighborMap(spots),[spots])
  // 任意の時刻の空席予測（推移グラフと、投稿時の入力の記録に使う）
  const seatAt=useCallback((spot:Spot,t:Date)=>{const s=sunPosition(t,AREA_CENTER),p=jstParts(t),fw=weatherAt(forecast,t),w=fw??demoWeather(p.dateKey,p.minutesOfDay,temp,condition),shade=engine.coverageAtXY(engine.proj.toXY(spot.position),s,spot.roof==='yes').state,wb=estimateWbgt(w,s.altitude);return {shade,weather:w,wbgt:wb,prediction:predictSeat({spot,time:t,now,dayType:dayTypeOf(t),weather:w,wbgt:wb,shade,events,location:locations.get(spot.id)!,reports,neighbors:neighbors.get(spot.id),hoursSinceRain:forecast?hoursSinceRain(forecast.hours,t):null,weatherIsDemo:!fw})}},[forecast,temp,condition,engine,now,events,locations,reports,neighbors])
  const rainSince=forecast?hoursSinceRain(forecast.hours,time):null
  const results=useMemo(()=>spots.map(spot=>{const raw=engine.coverageAtXY(engine.proj.toXY(spot.position),sun,spot.roof==='yes'),shade=weatherShade(raw.state,weather.condition),coverage=shade==='cloud'?{level:'night' as const,ratio:1,state:shade}:raw;return {spot,shade,coverage,distance:haversineM(origin,spot.position),prediction:isSeatSpot(spot)?predictSeat({spot,time,now,dayType:dayTypeOf(time),weather,wbgt,shade,events,location:locations.get(spot.id)!,reports,neighbors:neighbors.get(spot.id),hoursSinceRain:rainSince,weatherIsDemo}):null}}),[spots,engine,sun,time,now,weather.temperatureC,weather.condition,weather.precipitationProbability,wbgt,events,locations,reports,origin,neighbors,rainSince,weatherIsDemo])
  const filtered=useMemo(()=>results.filter(r=>(category==='all'||category==='rest'&&isSeatSpot(r.spot)||category===r.spot.kind)&&(!query||(spotName(r.spot)+' '+r.spot.description+' '+KIND_LABEL[r.spot.kind]).toLowerCase().includes(query.trim().toLowerCase()))&&(!shadedOnly||isShaded(r.shade))&&(!roofOnly||r.spot.roof==='yes')&&(!favoriteOnly||saved.favorites.includes(r.spot.id))&&(!seatableOnly||!!r.prediction&&seatLevel(r.prediction.combined)==='high')&&(!toiletNear||(toiletDistance.get(r.spot.id)??Infinity)<=TOILET_NEAR_M)&&r.distance<=range&&(flagCount.get(r.spot.id)??0)<FLAG_HIDE_COUNT).sort((a,b)=>sort==='distance'?a.distance-b.distance:sort==='seats'?(b.prediction?.combined??0)-(a.prediction?.combined??0):(b.prediction?.combined??.5)-(a.prediction?.combined??.5)+(a.distance-b.distance)/6000),[results,category,query,shadedOnly,roofOnly,favoriteOnly,saved.favorites,range,sort,flagCount,seatableOnly,toiletNear,toiletDistance])
- const active=filtered.find(r=>r.spot.id===selected)??filtered[0]??null
+  // 詳細に出す地点。選んだ地点が絞り込みで消えたら先頭を出す
+  const active = filtered.find((r) => r.spot.id === selected) ?? filtered[0] ?? null
  const explanationKey=`${active?.spot.id}:${day}:${minutes}:${weather.temperatureC}:${weather.condition}:${active?.prediction?.ai}`
- const timeline=useMemo(()=>active?engine.timeline(active.spot.id,active.spot.position,active.spot.roof==='yes',day,360,1140,15):null,[active?.spot.id,active?.spot.roof,engine,day])
+  // 選んだ地点の 6:00〜19:00、15 分刻みの日陰の推移
+  const timeline = useMemo(
+    () => (active ? engine.timeline(active.spot.id, active.spot.position, active.spot.roof === 'yes', day, 6 * 60, 19 * 60, 15) : null),
+    [active?.spot.id, active?.spot.roof, engine, day],
+  )
  // 空席の推移（9〜21時・30分ごと）。今日なら、これからの時間で一番座りやすい時刻を示す
  const trend=useMemo(()=>active&&isSeatSpot(active.spot)?Array.from({length:25},(_,i)=>{const m=540+i*30;return {m,p:seatAt(active.spot,jstDate(day,m)).prediction.ai}}):null,[active?.spot.id,seatAt,day])
  const nowParts=jstParts(now),isToday=day===nowParts.dateKey,bestSlot=trend?trend.filter(x=>!isToday||x.m>=nowParts.minutesOfDay-15).reduce<{m:number;p:number}|null>((b,x)=>!b||x.p>b.p+.005?x:b,null):null
- const windows=useMemo(()=>timeline?shadeWindows(timeline):[],[timeline]),times=useMemo(()=>sunTimes(day,AREA_CENTER),[day]),stats=useMemo(()=>heightStats(dataset.buildings),[dataset])
+  const windows = useMemo(() => (timeline ? shadeWindows(timeline) : []), [timeline])
+  const times = useMemo(() => sunTimes(day, AREA_CENTER), [day])
+  const stats = useMemo(() => heightStats(dataset.buildings), [dataset])
  // 着いたとき日陰で座れるベンチ: 出発時刻＋徒歩の分数で着く時刻を出し、その時刻の日陰と空席で並べる
  const sunAtMin=useMemo(()=>{const cache=new Map<number,SunPosition>();return (m:number)=>{const k=Math.max(0,Math.min(1439,Math.round(m)));let s=cache.get(k);if(!s){s=sunPosition(jstDate(day,k),AREA_CENTER);cache.set(k,s)}return s}},[day])
  const preferShade=preferShadeFor(weather.temperatureC)
@@ -157,50 +266,182 @@ function Explorer({initialDataset}:{initialDataset:AreaDataset}){
  const startRoute=(id:string)=>{setRouteTo(id);if(innerWidth<=760)setPanel('sun')}
  const shadeText=routeShading?routeShading.shadedRatio===null?'日没後のため日陰は計算しません':`日なたを歩く ${sunMin}分${shortestSunMin!==null&&shortestSunMin>sunMin!?`（最短ルートなら ${shortestSunMin}分）`:''}`:''
  const choose=useCallback((id:string)=>{setSelected(id);setExplanation(null);setPanel('spots');setSpotView('detail')},[])
- const mapSpots=useMemo(()=>filtered.map(r=>r.spot),[filtered])
+  const mapSpots = useMemo(() => filtered.map((r) => r.spot), [filtered])
  // ピンの色分け（緑＝座れそう・黄＝五分五分・赤＝混みそう）。投稿を含めた値 combined で判定する
  const levels=useMemo(()=>new Map<string,SeatLevel>(filtered.flatMap(r=>r.prediction?[[r.spot.id,seatLevel(r.prediction.combined)] as [string,SeatLevel]]:[])),[filtered])
  // Androidの戻るボタン（epoku-back）とEscape: モーダル→メニュー→ルート→一覧・詳細→太陽パネルの順に閉じる
  useEffect(()=>{const back=()=>{if(modal){setModal(null);setAdding(false)}else if(mainMenu){setMainMenu(false)}else if(routeTo){setRouteTo(null)}else if(panel==='spots'){setPanel('sun')}else if(solarOpen){setSolarOpen(false);setShowSun(false)}else{setPanel('sun');setSolarOpen(false)}};const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))back()};window.addEventListener('keydown',key);window.addEventListener('epoku-back',back);return()=>{window.removeEventListener('keydown',key);window.removeEventListener('epoku-back',back)}},[modal,mainMenu,routeTo,panel,solarOpen])
  useEffect(()=>setLimit(12),[query,category,shadedOnly,roofOnly,favoriteOnly,range,sort,seatableOnly,toiletNear])
- const run=async(label:string,fn:()=>Promise<void>)=>{if(busy)return;setBusy(label);try{await fn()}catch(e){notify((e as Error).message)}finally{setBusy('')}}
- const saveFavorite=(id:string)=>{const has=saved.favorites.includes(id);if(commit({...saved,favorites:has?saved.favorites.filter(x=>x!==id):[...saved.favorites,id]}))notify(has?'保存した場所から外しました。':'この端末の「保存した場所」に追加しました。')}
+  /** 時間のかかる処理を 1 つずつ走らせ、失敗したら理由を通知に出す */
+  const run = async (label: string, task: () => Promise<void>) => {
+    if (busy) return
+    setBusy(label)
+    try {
+      await task()
+    } catch (error) {
+      notify((error as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+  const saveFavorite = (id: string) => {
+    const isFavorite = saved.favorites.includes(id)
+    const favorites = isFavorite ? saved.favorites.filter((f) => f !== id) : saved.favorites.concat(id)
+    if (!commit({ ...saved, favorites })) return
+    notify(isFavorite ? '保存した場所から外しました。' : 'この端末の「保存した場所」に追加しました。')
+  }
 
  // 現地での答え合わせ: いまの実際の様子と、いまの時刻のモデルの判定を並べて記録する
  const rate=hitRate(saved.checks)
  const check=(observed:'shade'|'sun')=>{if(!active)return;const state=engine.stateAtXY(engine.proj.toXY(active.spot.position),sunPosition(new Date(),AREA_CENTER),active.spot.roof==='yes');if(state==='night'){notify('日没後は日陰の答え合わせができません。');return}const predicted=isShaded(state)?'shade':'sun'
   if(commit({...saved,checks:[...saved.checks,{id:crypto.randomUUID(),spotId:active.spot.id,observed,predicted,checkedAt:new Date().toISOString()}]}))notify(observed===predicted?'予測と一致しました。答え合わせを記録しました。':'予測と違いました。答え合わせを記録しました（予測の見直しに使います）。')}
- const post=(value:SeatReport['value'])=>{
-  if(!active)return
+  /** 空席の投稿。同じ地点への 1 分以内の投稿は新しいもので置き換える */
+  const post = (value: SeatReport['value']) => {
+    if (!active) return
   const at=new Date(),snap=isSeatSpot(active.spot)?seatAt(active.spot,at):null
   // 投稿した時点のルール推定と入力を残す（端末内のみ。共有データベースには送らない）
   const report:SeatReport={id:crypto.randomUUID(),spotId:active.spot.id,value,reportedAt:at.toISOString(),origin:'local',...(snap?{features:{hour:jstParts(at).hour,dayType:dayTypeOf(at),temperatureC:snap.weather.temperatureC,wbgt:snap.wbgt,condition:snap.weather.condition,shade:snap.shade,roof:active.spot.roof==='yes',aiProbability:snap.prediction.rule}}:{})}
-  if(!commit({...saved,reports:[...saved.reports.filter(r=>!(r.spotId===report.spotId&&Date.now()-Date.parse(r.reportedAt)<60000)),report]}))return
+    const recentSame = (r: SeatReport) => r.spotId === report.spotId && Date.now() - Date.parse(r.reportedAt) < 60_000
+    if (!commit({ ...saved, reports: saved.reports.filter((r) => !recentSame(r)).concat(report) })) return
   setNow(new Date());if(value==='facility'){notify('「設備が使えなかった」を記録しました。24時間はこの場所の順位を下げます（この端末のみ）。');return}
   notify('この端末に投稿しました。投稿は現在時刻の情報として記録されます。')
-  if(share.current)run('投稿の共有',async()=>{await share.current!.post(report);notify('投稿を共有しました。')})
+    const connection = share.current
+    if (connection) {
+      run('投稿の共有', async () => {
+        await connection.post(report)
+        notify('投稿を共有しました。')
+      })
+    }
  }
- const locate=()=>{if(!navigator.geolocation){notify('このブラウザーでは現在地を取得できません。');return}navigator.geolocation.getCurrentPosition(p=>{const point={lat:p.coords.latitude,lng:p.coords.longitude};if(haversineM(point,AREA_CENTER)>AREA_RADIUS_M){notify('現在地は対象エリア外です。桜木町の基準地点を表示しています。');return}setOrigin(point);notify('端末の現在地を検索の基準にしました。')},()=>notify('現在地を取得できませんでした。位置情報の許可をご確認ください。'),{timeout:10000,maximumAge:60000})}
+  /** 端末の現在地を出発地点にする。エリアの外なら基準地点のまま */
+  const locate = () => {
+    if (!navigator.geolocation) {
+      notify('このブラウザーでは現在地を取得できません。')
+      return
+    }
+    const onPosition = ({ coords }: GeolocationPosition) => {
+      const here = { lat: coords.latitude, lng: coords.longitude }
+      if (haversineM(here, AREA_CENTER) > AREA_RADIUS_M) {
+        notify('現在地は対象エリア外です。桜木町の基準地点を表示しています。')
+        return
+      }
+      setOrigin(here)
+      notify('端末の現在地を検索の基準にしました。')
+    }
+    const onError = () => notify('現在地を取得できませんでした。位置情報の許可をご確認ください。')
+    navigator.geolocation.getCurrentPosition(onPosition, onError, { timeout: 10_000, maximumAge: 60_000 })
+  }
  const summerDay=`${jstParts(now).dateKey.slice(0,4)}-08-14`,isSummer=day===summerDay
  const toggleSummer=()=>{setPlaying(false);setRouteTo(null);if(isSummer){setToNow();setTemp(24)}else{setDay(summerDay);setMinutes(840);setTemp(33);setCondition('clear')}}
- const setToNow=()=>{const p=jstParts(new Date());setDay(p.dateKey);setMinutes(p.minutesOfDay);setNow(new Date())}
- const importBackup=async(file:File)=>{try{if(file.size>5000000)throw Error('5MB以下のバックアップを選んでください。');const data=validateSaved(JSON.parse(await file.text()));if(commit(data)){notify('バックアップを復元しました。');setSelected('')}}catch(e){notify((e as Error).message)}}
+  const setToNow = () => {
+    const current = new Date()
+    const { dateKey, minutesOfDay } = jstParts(current)
+    setDay(dateKey)
+    setMinutes(minutesOfDay)
+    setNow(current)
+  }
+  /** JSON のバックアップを読み込んで端末の保存内容を置き換える（5MB まで） */
+  const importBackup = async (file: File) => {
+    try {
+      if (file.size > 5_000_000) throw new Error('5MB以下のバックアップを選んでください。')
+      const restored = validateSaved(JSON.parse(await file.text()))
+      if (!commit(restored)) return
+      notify('バックアップを復元しました。')
+      setSelected('')
+    } catch (error) {
+      notify((error as Error).message)
+    }
+  }
  const addSpot=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const form=new FormData(e.currentTarget);const position={lat:Number(form.get('lat')),lng:Number(form.get('lng'))};if(!inBounds(position)){notify('対象エリア（横浜・みなとみらい）内の地点を選んでください。');return}const seatText=String(form.get('seats')??'');const spot:Spot={id:'user:'+crypto.randomUUID(),name:String(form.get('name')).trim(),kind:form.get('kind') as Spot['kind'],position,origin:'user',seats:seatText?Number(seatText):null,roof:form.get('roof')==='on'?'yes':'unknown',roofSource:'user',backrest:'unknown',wheelchair:'unknown',cooling:form.get('cooling')==='on'?'yes':'unknown',stepFree:form.get('stepFree')==='on'?'yes':'unknown',infoSource:'user'};if(commit({...saved,spots:[...saved.spots,spot]})){setPanel('spots');setSelected(spot.id);setCategory('all');setModal(null);setAdding(false);notify('スポットをこの端末に追加しました。')}}
- const fetchLive=()=>run('OSMデータの取得',async()=>{const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:new URLSearchParams({data:buildOverpassQuery(AREA_BOUNDS,25)}),signal:AbortSignal.timeout(35000)});if(!r.ok)throw Error('OSMの取得に失敗しました。');const raw=slimOverpass(await r.json(),new Date().toISOString());const d=parseOsm(raw,{origin:AREA_CENTER,live:true});if(!d.spots.length)throw Error('地点が返りませんでした。同梱データを維持します。');setDataset(d);notify(`${d.spots.length}地点のOSMデータを取得しました。`)})
- const reportForActive=saved.reports.filter(r=>r.spotId===active?.spot.id).sort((a,b)=>Date.parse(b.reportedAt)-Date.parse(a.reportedAt))[0]
+  // Overpass から対象エリアの最新データを取り直す（失敗したら今のデータのまま）
+  const fetchLive = () =>
+    run('OSMデータの取得', async () => {
+      const live = await fetchLiveDataset()
+      setDataset(live)
+      notify(`${live.spots.length}地点のOSMデータを取得しました。`)
+    })
+  // 選んだ地点への、この端末からのいちばん新しい投稿
+  const reportForActive = useMemo(() => {
+    let latest: SeatReport | undefined
+    for (const r of saved.reports) {
+      if (r.spotId !== active?.spot.id) continue
+      if (!latest || Date.parse(r.reportedAt) > Date.parse(latest.reportedAt)) latest = r
+    }
+    return latest
+  }, [saved.reports, active?.spot.id])
+  /** 自分で登録した地点を、保存・投稿ごと消す */
+  const deleteOwnSpot = (id: string) => {
+    const next = {
+      ...saved,
+      spots: saved.spots.filter((s) => s.id !== id),
+      favorites: saved.favorites.filter((f) => f !== id),
+      reports: saved.reports.filter((r) => r.spotId !== id),
+    }
+    if (commit(next)) notify('自分で登録したスポットを削除しました。')
+  }
+  /** Firebase 共有の開始・停止。止めても端末内の投稿は残す */
+  const toggleSharing = () => {
+    if (!sharing) {
+      run('Firebaseへの接続', async () => {
+        share.current = await enableSharedReports(setShared, notify)
+        setSharing(true)
+        notify('新しく行う投稿を共有します。過去の投稿は自動送信しません。')
+      })
+      return
+    }
+    share.current?.close()
+    share.current = null
+    setSharing(false)
+    setShared([])
+    notify('共有を停止しました。端末内の投稿は残っています。')
+  }
  return <div data-back-active={!!modal||mainMenu||!!routeTo||panel==='spots'||solarOpen} className={`immersive-app simple quality-${quality} panel-${panel} ${solarOpen?'solar-expanded':'solar-collapsed'}${showSun?' show-sun':''}${routeTo?' has-route':''}`}>
   <header className="site-header"><a className="brand" href="./" aria-label="Rest Care ホーム"><span className="brand-mark"><Leaf size={23}/></span><span>Rest Care<span className="brand-dot">.</span></span></a><div className="header-place"><MapPin size={14}/><span>横浜・みなとみらい</span></div><nav className="view-nav" aria-label="表示するパネル"><button aria-pressed={panel==='sun'} onClick={()=>setPanel('sun')}><Sun size={15}/>探索</button><button aria-pressed={panel==='spots'} onClick={()=>setPanel('spots')}><Armchair size={15}/>休憩スポット</button></nav><div className="header-actions"><button className="icon-button menu-button" aria-label="メニューを開く" aria-expanded={mainMenu} onClick={()=>setMainMenu(true)}><Menu size={22}/></button></div></header>
   <MenuDrawer open={mainMenu} onClose={()=>setMainMenu(false)} favorites={saved.favorites.length} mode={mode} onMode={setMode} showShadow={showShadow} onShadow={setShowShadow} showPath={showPath} onPath={setShowPath} maxWalk={maxWalk} onMaxWalk={setMaxWalk} followTime={followTime} onFollowTime={setFollowTime} showLabels={showLabels} onShowLabels={setShowLabels} onRestSheet={()=>setModal('rest')} lightQuality={quality==='light'} onLightQuality={v=>setQuality(v?'light':'balanced')}
    onList={()=>{setFavoriteOnly(false);setPanel('spots');setSpotView('list')}} onFavorites={()=>{setFavoriteOnly(true);setPanel('spots');setSpotView('list')}} onSun={()=>{setShowSun(true);setSolarOpen(true);setPanel('sun')}} onLocate={locate} onAdd={()=>{if(mode.startsWith('google'))setMode('model2d');setAdding(true);setPanel('sun')}} onHelp={()=>setModal('help')} onSettings={()=>setModal('settings')} onAbout={()=>setModal('about')}/>
   {showRestBanner?<RestBanner walkingMinutes={walkingMinutes} hot={wbgt>=HOT_WBGT} onRest={()=>setModal('rest')} onSnooze={()=>setRestPrefs(snooze(restPrefs,Date.now()))} onDisable={()=>{setRestPrefs({...restPrefs,bannerDisabled:true,log:[...restPrefs.log,{at:Date.now(),action:'disable'}]});notify('休憩の提案を止めました。設定から戻せます。')}}/>:null}
   <main className="app-shell"><SolarPanel day={day} minutes={minutes} sun={sun} weather={weather} weatherSource={weatherIsDemo?'天気デモ':forecast?.sourceLabel||'予報'} onTime={m=>{setPlaying(false);setMinutes(m)}} onSettings={()=>setModal('settings')} onAbout={()=>setModal('about')} open={solarOpen} onToggle={()=>{if(solarOpen){setSolarOpen(false);setShowSun(false)}else setSolarOpen(true)}}/><section className="intro"><div><p className="eyebrow"><span/> A LITTLE PAUSE, A BETTER DAY</p><h1>ひと休みを、<span>もっと気軽に。</span></h1><p className="intro-copy">座れる場所も、心地いい日陰も。まちの中の、ちょうどいい休憩を。</p></div><button className="weather-pill" onClick={()=>setModal('settings')}>{weather.condition==='clear'?<Sun size={27}/>:<Cloud size={27}/>}<span><strong>{Math.round(weather.temperatureC)}<small>°C</small></strong><span>{WEATHER_LABEL[weather.condition]} <i>· {weatherIsDemo?'天気デモ':forecast?.sourceLabel}</i></span></span><ArrowUpRight size={16}/></button></section>
-  <div className="workspace"><section className="map-panel" aria-label="スポット検索と地図">
-   <div className="search-area"><label className="search-box"><Search size={21}/><input aria-label="スポットを検索" placeholder="公園、スポット名、設備から探す" onFocus={()=>setPanel('spots')} value={query} onChange={e=>setQuery(e.target.value)}/>{query?<button aria-label="検索をクリア" onClick={()=>setQuery('')}><X size={16}/></button>:null}<span className="search-location"><MapPin size={14}/>みなとみらい</span></label><button className="locate-search" aria-label="端末の現在地を取得" onClick={locate}><LocateFixed size={20}/></button></div>
+   <div className="workspace">
+    <section className="map-panel" aria-label="スポット検索と地図">
+    <div className="search-area">
+     <label className="search-box">
+      <Search size={21} />
+      <input
+       aria-label="スポットを検索"
+       placeholder="公園、スポット名、設備から探す"
+       value={query}
+       onFocus={() => setPanel('spots')}
+       onChange={(e) => setQuery(e.target.value)}
+      />
+      {query ? (
+       <button aria-label="検索をクリア" onClick={() => setQuery('')}>
+        <X size={16} />
+       </button>
+      ) : null}
+      <span className="search-location">
+       <MapPin size={14} />
+       みなとみらい
+      </span>
+     </label>
+     <button className="locate-search" aria-label="端末の現在地を取得" onClick={locate}>
+      <LocateFixed size={20} />
+     </button>
+    </div>
    <div className="filter-row"><button aria-pressed={shadedOnly} onClick={()=>setShadedOnly(x=>!x)}><Leaf size={15}/>日陰</button><button aria-pressed={roofOnly} onClick={()=>setRoofOnly(x=>!x)}><House size={15}/>屋根あり</button><button aria-pressed={seatableOnly} onClick={()=>{setSeatableOnly(x=>!x);setPanel('spots')}}><Armchair size={15}/>座れそう</button><button aria-pressed={toiletNear} onClick={()=>{setToiletNear(x=>!x);setPanel('spots')}}><Accessibility size={15}/>トイレ近く</button></div>
    <div className="map-stage"><MapView weather={weather.condition} quality={quality} onQuality={()=>setQuality(v=>v==='light'?'balanced':'light')} dataset={dataset} spots={mapSpots} selected={active?.spot.id||''} sun={sun} day={day} minutes={minutes} showPath={showPath} mode={mode} apiKey={mapKey} location={origin} showShadow={showShadow} adding={adding} onSelect={choose} onPoint={p=>{setAddPoint(p);setModal('add')}} onError={notify} onMode={setMode} route={routeShading?.segments??null} levels={levels} showLabels={showLabels} bubbles={panel==='sun'||innerWidth>760?bubbles:[]} onBubble={onBubble}/>
    <div className="seat-legend glass-panel" aria-label="ピンの色: 空席予測"><span><i className="level-high"/>座れそう</span><span><i className="level-mid"/>五分五分</span><span><i className="level-low"/>混みそう</span></div>
    <div className="map-source"><i/>{dataset.meta.live?'OSM ライブ取得':dataset.meta.plateauBuildings?'OSM + PLATEAU 2024':'OSM 同梱データ'}<button aria-label="地図とデータについて" onClick={()=>setModal('about')}><Info size={14}/></button></div>
-   <button className={'add-spot '+(adding?'on':'')} onClick={()=>{if(mode.startsWith('google'))setMode('model2d');setAdding(v=>!v)}}>{adding?<X size={17}/>:<Plus size={17}/>}<span>{adding?'追加をキャンセル':'スポットを追加'}</span></button>
+    <button
+     className={adding ? 'add-spot on' : 'add-spot'}
+     onClick={() => {
+      // Google の地図ではタップ位置を取れないのでモデル地図に切り替える
+      if (mode.startsWith('google')) setMode('model2d')
+      setAdding((on) => !on)
+     }}
+    >
+     {adding ? <X size={17} /> : <Plus size={17} />}
+     <span>{adding ? '追加をキャンセル' : 'スポットを追加'}</span>
+    </button>
    {adding?<div className="add-hint">追加する場所を地図上でタップ <button onClick={()=>{setAddPoint(origin);setModal('add')}}>基準地点に追加</button><button onClick={()=>setAdding(false)}>やめる</button></div>:null}
    {picks.length&&!(routeSpot&&!picks.some(p=>p.spot.id===routeTo))?<section ref={cardRef} className={'best-pick glass-panel'+(tucked?' tucked tucked-'+tucked:'')} aria-label="着いたときのおすすめ" aria-roledescription="カルーセル" aria-hidden={tucked?true:undefined} inert={tucked?true:undefined} onPointerDown={cardDown} onPointerMove={cardMove} onPointerUp={cardUp} onPointerCancel={cardUp} onClickCapture={cardClickGuard}><button className="best-tuck" aria-label="おすすめを端にしまう（横にスワイプでも）" onClick={()=>setTucked('left')}><ChevronLeft size={15}/></button><span className="best-grip" aria-hidden="true"/><button className="care-chip" onClick={()=>setModal('rest')} aria-label="いまの状態を変える（休憩する）"><HeartPulse size={14}/><span>いまの状態</span><b>疲れ{NEED_FATIGUE[restNeed.fatigue]} · {WALKED_LABEL[restNeed.walked]} · {restNeed.available}分休める{restNeed.wishes.length?' · '+restNeed.wishes.map(w=>WISH_LABEL[w]+(restNeed.must?.includes(w)?'（必須）':'')).join('・'):''}</b><PencilLine size={14}/></button>{restNeed.fatigue==='limit'?<p className="rest-safety-inline" role="alert"><ShieldAlert size={15}/>{SAFETY_GUIDANCE}</p>:null}{livePicks.length&&livePicks.every(p=>p.walkMin>walkLimit(restNeed))?<p className="rest-limit-note">徒歩{walkLimit(restNeed)}分以内に候補がないため、近い順に出しています。</p>:null}<div className="best-time"><span>{day===jstParts(now).dateKey?'出発':`${formatDateJa(day)} 出発`}</span><strong>{formatTime(minutes)}</strong><input className="best-slider" type="range" min="300" max="1260" step="5" aria-label="出発時刻" value={Math.max(300,Math.min(1260,minutes))} style={{'--time-progress':String((Math.max(300,Math.min(1260,minutes))-300)/960*100)+'%'} as React.CSSProperties} onChange={e=>{setPlaying(false);setMinutes(Number(e.target.value))}}/><button className="best-preset" onClick={()=>{setPlaying(false);setRouteTo(null);setToNow();if(isSummer)setTemp(24)}}>今</button><button className={'best-preset summer'+(isSummer?' on':'')} aria-pressed={isSummer} onClick={toggleSummer}>夏14時</button></div>{staleFrozen?<div className="repick-row"><span>候補は {frozen!.day!==day?formatDateJa(frozen!.day)+' ':''}{formatTime(frozen!.minutes)} 出発で選んだ場所です（影と表示は {formatTime(minutes)} のもの）</span><button onClick={refreeze}>この時刻で選び直す</button></div>:null}
     <div className="best-track" ref={trackRef} onScroll={onTrackScroll}>{picks.map((p,i)=>{const onRoute=routeTo===p.spot.id&&!!route,walk=onRoute?walkMinutes(route!.distance):p.walkMin,arrive=Math.min(1439,minutes+walk),shaded=isShaded(p.shade),level=seatLevel(p.seat),span=pickSpans[i]
@@ -242,23 +483,73 @@ function Explorer({initialDataset}:{initialDataset:AreaDataset}){
      <fieldset className="route-radio"><legend>道の選び方</legend><label><input type="radio" name="route-mode-detail" checked={shadeFirst} onChange={()=>setShadeFirst(true)}/><span>日陰を優先</span></label><label><input type="radio" name="route-mode-detail" checked={!shadeFirst} onChange={()=>setShadeFirst(false)}/><span>最短</span></label></fieldset><div className="route-actions"><button onClick={()=>setRouteTo(null)}><X size={14}/>ルートを閉じる</button></div></div>
     :<button className="primary route-button" onClick={()=>startRoute(active.spot.id)}><Footprints size={17}/>ここへ行く（徒歩ルート）</button>}
     <a className="route-external" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${active.spot.position.lat},${active.spot.position.lng}&travelmode=walking`}>Google マップで開く <ArrowUpRight size={12}/></a>
-    {active.spot.origin==='user'?<button className="delete-spot" onClick={()=>{if(commit({...saved,spots:saved.spots.filter(s=>s.id!==active.spot.id),favorites:saved.favorites.filter(id=>id!==active.spot.id),reports:saved.reports.filter(r=>r.spotId!==active.spot.id)}))notify('自分で登録したスポットを削除しました。')}}>登録したスポットを削除</button>:null}
+     {active.spot.origin === 'user' ? (
+      <button className="delete-spot" onClick={() => deleteOwnSpot(active.spot.id)}>
+       登録したスポットを削除
+      </button>
+     ) : null}
    </article>
    <div className="other-heading"><h3>{spotView==='list'?'候補の一覧':'ほかの候補もチェック'}</h3><span>{spotView==='list'?filtered.length:Math.max(0,filtered.length-1)}か所</span></div>{filtered.filter(r=>spotView==='list'||r.spot.id!==active.spot.id).slice(0,limit).map(r=>{const Icon=kindIcons[r.spot.kind];return <button className="result-card" key={r.spot.id} onClick={()=>choose(r.spot.id)}><span className="result-icon"><Icon size={21}/></span><span className="result-copy"><strong>{placeLabel(r.spot)}</strong><span>直線 {formatDistance(r.distance)} · {r.coverage.level==='partial'?COVERAGE_LABEL.partial:SHADE_LABEL[r.shade]}</span></span><span className={'result-prob'+(r.prediction?' level-text-'+seatLevel(r.prediction.combined):'')}>{r.prediction?pct(r.prediction.ai):<ArrowRight size={17}/>}<small>{r.prediction?'推定':''}</small></span></button>})}{filtered.length>limit+1?<button className="show-more" onClick={()=>setLimit(n=>n+12)}>もっと見る <Plus size={15}/></button>:null}
    </>}
-   <p className="results-note"><Info size={14}/>日陰は建物・樹木の近似モデルです。実際の設備や開放状況は現地でご確認ください。</p></div>
+    <p className="results-note">
+     <Info size={14} />
+     日陰は建物・樹木の近似モデルです。実際の設備や開放状況は現地でご確認ください。
+    </p>
+   </div>
   </aside></div><footer className="site-footer"><span><Leaf size={14}/>休むことも、まちを楽しむこと。</span><button onClick={()=>setModal('about')}>データと予測について <ArrowUpRight size={12}/></button><small>Rest Care / 0.3</small></footer></main>
-  {notice?<div className="notice" role="status"><Info size={18}/><span>{notice}</span><button aria-label="通知を閉じる" onClick={()=>setNotice('')}><X size={17}/></button></div>:null}{busy?<div className="busy" role="status"><RefreshCw size={14} className="spin"/>{busy}…</div>:null}
+   {notice ? (
+    <div className="notice" role="status">
+     <Info size={18} />
+     <span>{notice}</span>
+     <button aria-label="通知を閉じる" onClick={() => setNotice('')}>
+      <X size={17} />
+     </button>
+    </div>
+   ) : null}
+   {busy ? (
+    <div className="busy" role="status">
+     <RefreshCw size={14} className="spin" />
+     {busy}…
+    </div>
+   ) : null}
   {modal==='settings'?<Modal title="設定とAPI接続" onClose={()=>setModal(null)}><div className="modal-body"><p className="modal-lead">APIキーなしで、同梱のOSMデータと天気デモを使えます。</p><section className="setting-section"><h3><Sun size={17}/>天気とイベント</h3><div className="two-fields"><label>デモ気温（℃）<input type="number" min="-10" max="45" value={temp} onChange={e=>{setTemp(Math.max(-10,Math.min(45,Number(e.target.value))));setForecast(null)}}/></label><fieldset className="weather-radio"><legend>デモ天気</legend>{([['clear','晴れ'],['cloudy','くもり'],['rain','雨'],['snow','雪']] as [WeatherCondition,string][]).map(([v,l])=><label key={v}><input type="radio" name="demo-weather" checked={condition===v} onChange={()=>{setCondition(v);setForecast(null)}}/><span>{l}</span></label>)}</fieldset></div><div className="button-row"><button disabled={!!busy} onClick={()=>run('天気の取得',async()=>{setForecast(await openMeteo());notify('Open-Meteoの予報を取得しました。対応する日時に反映されます。')})}>Open-Meteoで取得</button><button disabled={!!busy} onClick={()=>run('Google Weatherの取得',async()=>{setForecast(await googleWeather());notify('Google Weatherの予報を取得しました。')})}>Google Weatherで取得</button></div><p className="field-note">取得した予報の対象外の日時では天気デモを表示します。Open-Meteoは通信が必要です。</p><label className="check-row"><input type="checkbox" checked={eventDemo} onChange={e=>setEventDemo(e.target.checked)}/>広場イベントを仮定する（10–18時・デモ）</label>{eventDemo?<p className="warning-inline">イベントは架空の条件です。実際の開催情報ではありません。</p>:null}</section>
    <RestSettings prefs={restPrefs} setPrefs={setRestPrefs} google={google} onGoogleChange={refreshGoogle} notify={notify} onWalkDemo={()=>{setWalkDemo(30);setRestPrefs({...restPrefs,snoozedUntil:null});setModal(null)}}/>
    <section className="setting-section"><h3><Layers size={17}/>3Dの表示品質</h3><div className="button-row"><button aria-pressed={quality==='light'} onClick={()=>setQuality('light')}>軽量（スマホ向け）</button><button aria-pressed={quality==='balanced'} onClick={()=>setQuality('balanced')}>標準</button></div><p className="field-note">軽量表示では影の解像度・樹木・建物の装飾を減らし、カメラ移動のアニメーションを省略します。日陰の判定と検索条件は共通です。</p></section>
-   <section className="setting-section"><h3><Layers size={17}/>Google 2D / 写実的3D地図</h3><label>Google Maps用ブラウザーキー<input autoComplete="off" type="password" aria-label="Google Maps APIキー" placeholder="APIキーを入力" value={mapKey} onChange={e=>setMapKey(e.target.value)}/></label><p className="field-note">入力したキーは画面のメモリー内だけで扱います。リファラー・API制限を設定してください。3Dの見た目とOSMによる日陰計算は別です。</p><div className="button-row"><button disabled={!mapKey.trim()||!!busy} onClick={()=>{setMode('google2d');setModal(null)}}>Google 2Dに接続</button><button disabled={!mapKey.trim()||!!busy} onClick={()=>{setMode('google3d');setModal(null)}}>Google 3Dに接続</button><button onClick={()=>setMode('model2d')}>モデル地図に戻す</button></div></section>
-   <section className="setting-section"><h3><RefreshCw size={17}/>データと共有</h3><p className="field-note">{dataset.spots.length}地点 / 建物{dataset.buildings.length}件 / 樹木{dataset.trees.length}本。基準: {dataset.meta.asOf?new Date(dataset.meta.asOf).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}):'不明'}</p><div className="button-row"><button disabled={!!busy} onClick={fetchLive}>OSMをライブ取得</button><button onClick={()=>{setDataset(initialDataset);notify('同梱のOSMデータに戻しました。')}}>同梱データに戻す</button></div><button className="wide-button" disabled={!!busy} onClick={()=>{if(sharing){share.current?.close();share.current=null;setSharing(false);setShared([]);notify('共有を停止しました。端末内の投稿は残っています。')}else run('Firebaseへの接続',async()=>{share.current=await enableSharedReports(setShared,notify);setSharing(true);notify('新しく行う投稿を共有します。過去の投稿は自動送信しません。')})}}>{sharing?'Firebase共有を停止':'Firebaseで新しい投稿を共有'}</button><p className="field-note">共有には環境変数の設定と、Firebaseの匿名認証・Firestoreルールの適用が必要です。</p></section>
+    <MapKeySection
+     mapKey={mapKey}
+     busy={!!busy}
+     onMapKey={setMapKey}
+     onConnect={(next) => {
+      setMode(next)
+      setModal(null)
+     }}
+     onModelMap={() => setMode('model2d')}
+    />
+    <DataSection
+     dataset={dataset}
+     busy={!!busy}
+     sharing={sharing}
+     onFetchLive={fetchLive}
+     onBundled={() => {
+      setDataset(initialDataset)
+      notify('同梱のOSMデータに戻しました。')
+     }}
+     onToggleSharing={toggleSharing}
+    />
    <section className="setting-section"><h3><Download size={17}/>この端末のデータ</h3><p className="field-note">登録 {saved.spots.length}件・投稿 {saved.reports.length}件・保存 {saved.favorites.length}件・日陰の答え合わせ {rate.total}件{rate.ratio!==null?`（予測と一致 ${pct(rate.ratio)}）`:''}。復元すると端末内のデータを置き換えます。</p><div className="button-row"><button onClick={()=>exportSaved(saved)}>JSONで保存</button><button onClick={()=>importRef.current?.click()}>JSONから復元</button><button className="danger-button" onClick={()=>setModal('delete')}>端末内データを削除</button></div><input ref={importRef} type="file" accept=".json,application/json" className="sr-only" onChange={e=>{const f=e.target.files?.[0];if(f)importBackup(f);e.target.value=''}}/></section></div></Modal>:null}
   {modal==='help'?<Modal title="Rest Care の使い方" onClose={closeHelp}><div className="modal-body help"><p className="modal-lead">暑い日に、着いたとき日陰で座れるベンチを教えるマップです。</p><ol className="help-steps"><li><b>下のカード</b>がおすすめのベンチです。横にスワイプすると、ほかの候補に切り替わります。</li><li>地図の<b>「!」</b>やベンチの吹き出しをタップしても選べます。</li><li><b>右端の時刻</b>を上下にドラッグすると、時刻が変わって建物の影が動きます。候補の場所はそのままです。選び直すときは「この時刻で選び直す」を押してください（メニューで自動にもできます）。</li><li><b>「ここへ行く」</b>で、日陰の多い道と、日なたを歩く時間を表示します。</li></ol><details className="acc"><summary>色の意味</summary><ul className="help-legend"><li><i className="level-high"/>座れそう（70%以上）</li><li><i className="level-mid"/>五分五分</li><li><i className="level-low"/>混みそう（40%未満）</li><li><i className="dot-shade"/>道の青い部分は日陰、<i className="dot-sun"/>橙は日なた</li></ul></details><details className="acc"><summary>安全について</summary><p>epoku は医療的な判断をしません。暑さ指数の表示は推定の目安です。体調がすぐれないときは無理をせず、涼しい場所で休み、周りの人に声をかけてください。</p></details><details className="acc"><summary>予測について</summary><p>日陰は建物と木の形から計算した予測、座れる見込みは時間帯や天気からのルール推定です。現地で答え合わせをすると、予測が当たったかを記録できます。</p></details><button className="primary" onClick={closeHelp}>はじめる</button></div></Modal>:null}
   {modal==='rest'?<Modal title="休憩する" onClose={()=>setModal(null)}><RestSheet initial={restNeed} wbgt={wbgt} temperatureC={weather.temperatureC} walkingMinutes={walkingMinutes} prefs={restPrefs} setPrefs={setRestPrefs} google={google} onGoogleChange={refreshGoogle} onShowSpots={showRestSpots} notify={notify}/></Modal>:null}
   {modal==='about'?<Modal title="データと予測について" onClose={()=>setModal(null)}><div className="modal-body about"><p>Rest Care は、横浜・みなとみらいで休憩できる場所を探すプロトタイプです。</p><h3>地点と建物はOSMデータ</h3><p>APIキーがなくても、同梱のOSMスナップショットを使えます。実在するデータですが、未掲載・位置のずれ・更新の遅れがあります。施設の営業時間や利用条件は未収録です。</p><p>建物の高さ: タグあり {stats.measured}件 / 階数から推定 {stats.levels}件 / 仮定 {stats.assumed}件。</p><h3>日陰は計算モデル</h3><p>SunCalc v2で太陽位置を求め、建物を角柱、樹木の樹冠を円柱として光線の遮蔽を判定します。地形・植生の季節変化・建物の細部は反映していません。標準の3D描画は模型で、窓や樹冠の細部・色は実際の外観とは異なります。3Dの影と地点の日陰判定は、解像度などによって境界がずれることがあります。Googleの3D映像から形状を抽出しません。</p><p>{formatDateJa(day)}の日の出 {times.sunriseMin===null?'不明':formatTime(times.sunriseMin)} / 日の入り {times.sunsetMin===null?'不明':formatTime(times.sunsetMin)}</p><h3>空席予測と実投稿</h3><p>表示する確率は、学習済みAIではなく、時間帯・曜日・天気・周辺施設・席数によるルール推定です。実測による精度検証はまだ行っていません。投稿は別表示し、現在の15分前〜30分後の予測だけに補正として使います。</p><h3>保存とAPI</h3><p>初期状態の投稿・保存先・追加地点は、このブラウザーだけに保存されます。Firebase共有は自分で有効にした場合だけ行います。位置情報は取得ボタンを押したときに使います。</p><p>Web版は利用できます。Android APKは同梱の手順でビルドできます。バックグラウンド通知、健康データ連携、行政への送信は含まれていません。</p><div className="source-links"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap / ODbL</a><a href="https://github.com/mourner/suncalc" target="_blank" rel="noreferrer">SunCalc</a><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">天気: Open-Meteo (CC BY 4.0)</a></div></div></Modal>:null}
   {modal==='add'?<Modal title="スポットを追加" onClose={()=>{setModal(null);setAdding(false)}}><form className="modal-body add-form" onSubmit={addSpot}><p className="modal-lead">現地で見つけた場所を、この端末に登録します。</p><label>名前<input name="name" maxLength={80} required placeholder="例: 海辺の休憩ベンチ"/></label><label>設備の種類<select name="kind" value={addKind} onChange={e=>setAddKind(e.target.value)}>{Object.entries(KIND_LABEL).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><div className="two-fields"><label>緯度<input name="lat" type="number" step="any" defaultValue={addPoint.lat.toFixed(6)} required/></label><label>経度<input name="lng" type="number" step="any" defaultValue={addPoint.lng.toFixed(6)} required/></label></div><label>席数（不明なら空欄）<input name="seats" type="number" min="1" max="100"/></label><label className="check-row"><input name="roof" type="checkbox"/>屋根があることを確認した</label><label className="check-row"><input name="cooling" type="checkbox"/>冷房があることを確認した</label><label className="check-row"><input name="stepFree" type="checkbox"/>段差がないことを確認した</label><button className="primary" type="submit"><Plus size={17}/>この端末に追加</button></form></Modal>:null}
-  {modal==='delete'?<Modal title="端末内のデータを削除" onClose={()=>setModal('settings')}><div className="modal-body"><p>登録した地点、端末内の投稿、保存先を削除します。必要なら先にJSONで保存してください。共有済みのFirestore投稿は削除されません。</p><div className="button-row"><button onClick={()=>setModal('settings')}>戻る</button><button className="danger-button" onClick={()=>{if(commit(structuredClone(EMPTY))){setModal(null);notify('端末内のデータを削除しました。')}}}>削除する</button></div></div></Modal>:null}
+   {modal === 'delete' ? (
+    <DeleteDataModal
+     onBack={() => setModal('settings')}
+     onDelete={() => {
+      if (!commit(structuredClone(EMPTY))) return
+      setModal(null)
+      notify('端末内のデータを削除しました。')
+     }}
+    />
+   ) : null}
   </div>
 }

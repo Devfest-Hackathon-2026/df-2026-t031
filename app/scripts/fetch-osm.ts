@@ -1,39 +1,53 @@
-/**
- * OpenStreetMap（Overpass API）から対象エリアのデータを取得し、アプリ同梱のスナップショットを作る。
- *   npm run data:osm
- * 出力: public/data/area-osm.json（ODbL。アプリ内に「© OpenStreetMap contributors」を表示する）
- *
- * アプリの「OSM ライブ取得」も同じクエリ（src/domain/osmQuery.ts）と同じ変換（src/domain/osm.ts）を使う。
- */
-import { writeFile, mkdir } from 'node:fs/promises'
+// 2026-11-10 期間内に書き直し。
+// 対象エリアの OpenStreetMap データを Overpass API から取り、アプリに同梱するスナップショットを書き出す。
+//
+//   npm run data:osm   →  public/data/area-osm.json
+//
+// データは ODbL 1.0。アプリの画面に「© OpenStreetMap contributors」を出す。
+// アプリ内のライブ取得も、同じクエリと同じ縮め方（src/domain/osmQuery.ts）を使う。
+
+import { mkdir, writeFile } from 'node:fs/promises'
 import { AREA_BOUNDS } from '../src/domain/area.ts'
 import { buildOverpassQuery, slimOverpass } from '../src/domain/osmQuery.ts'
 
-const endpoint = process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter'
-const query = buildOverpassQuery(AREA_BOUNDS)
+const OVERPASS = process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter'
+const OUT_DIR = new URL('../public/data/', import.meta.url)
+const OUT_FILE = new URL('area-osm.json', OUT_DIR)
 
-console.log(`Overpass に問い合わせ中: ${endpoint}`)
-const res = await fetch(endpoint, {
-  method: 'POST',
-  headers: {
-    'content-type': 'application/x-www-form-urlencoded',
-    // Overpass は User-Agent のないリクエストを拒否することがある
-    'user-agent': 'epoku-hackathon-prototype/0.1 (OSM snapshot script)',
-    accept: 'application/json',
-  },
-  body: new URLSearchParams({ data: query }),
-})
-if (!res.ok) {
-  console.error(`取得に失敗しました: HTTP ${res.status}`)
-  console.error((await res.text()).slice(0, 500))
+async function fetchOverpass(query: string): Promise<unknown> {
+  const response = await fetch(OVERPASS, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+      // User-Agent がないと断られることがある
+      'user-agent': 'epoku-hackathon-prototype/0.1 (OSM snapshot script)',
+    },
+    body: new URLSearchParams({ data: query }),
+  })
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 500)
+    throw new Error(`取得に失敗しました: HTTP ${response.status}\n${detail}`)
+  }
+  return response.json()
+}
+
+/** 要素の種類（n / w / r）ごとの件数 */
+function countByType(elements: { t: string }[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const { t } of elements) counts[t] = (counts[t] ?? 0) + 1
+  return counts
+}
+
+try {
+  console.log(`Overpass に問い合わせ中: ${OVERPASS}`)
+  const snapshot = slimOverpass(await fetchOverpass(buildOverpassQuery(AREA_BOUNDS)), new Date().toISOString())
+  const json = JSON.stringify(snapshot)
+  await mkdir(OUT_DIR, { recursive: true })
+  await writeFile(OUT_FILE, json)
+  const sizeKb = Math.round(json.length / 1024)
+  console.log(`保存しました: ${OUT_FILE.pathname}（${sizeKb} KB）`, countByType(snapshot.elements), `OSM 基準時刻 ${snapshot.osmBase}`)
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error)
   process.exit(1)
 }
-const raw = await res.json()
-const slim = slimOverpass(raw, new Date().toISOString())
-await mkdir(new URL('../public/data/', import.meta.url), { recursive: true })
-const out = new URL('../public/data/area-osm.json', import.meta.url)
-const text = JSON.stringify(slim)
-await writeFile(out, text)
-const counts: Record<string, number> = {}
-for (const e of slim.elements) counts[e.t] = (counts[e.t] ?? 0) + 1
-console.log(`保存しました: ${out.pathname}（${(text.length / 1024).toFixed(0)} KB）`, counts, `OSM 基準時刻 ${slim.osmBase}`)

@@ -1,127 +1,160 @@
 import type { Bounds, LatLng, XY } from './types.ts'
 
-/** 地球の平均半径（m） */
-const R = 6_371_008.8
-const RAD = Math.PI / 180
+// 2026-11-10 期間内に書き直し。座標計算の小道具をまとめたモジュール。
+
+const EARTH_RADIUS_M = 6_371_008.8
+const DEG = Math.PI / 180
+const WALK_M_PER_MIN = 80
 
 /**
- * 緯度経度 ↔ 平面（m）の変換。エリアが数 km なので、基準点まわりの正距円筒図法で十分な精度になる
- * （2 km 先で誤差は数 cm 程度）。
+ * ある地点を原点にした平面座標（メートル、x=東、y=北）との相互変換。
+ * 対象は数 km 四方なので、原点の緯度で経度方向を縮める簡易投影で十分。
  */
 export class LocalProjection {
   readonly origin: LatLng
-  private readonly kx: number
-  private readonly ky: number
+  private readonly metersPerLng: number
+  private readonly metersPerLat: number
 
   constructor(origin: LatLng) {
     this.origin = origin
-    this.kx = R * RAD * Math.cos(origin.lat * RAD)
-    this.ky = R * RAD
+    this.metersPerLat = EARTH_RADIUS_M * DEG
+    this.metersPerLng = this.metersPerLat * Math.cos(origin.lat * DEG)
   }
 
-  toXY(p: LatLng): XY {
-    return { x: (p.lng - this.origin.lng) * this.kx, y: (p.lat - this.origin.lat) * this.ky }
+  toXY({ lat, lng }: LatLng): XY {
+    return {
+      x: (lng - this.origin.lng) * this.metersPerLng,
+      y: (lat - this.origin.lat) * this.metersPerLat,
+    }
   }
 
-  toLatLng(p: XY): LatLng {
-    return { lat: this.origin.lat + p.y / this.ky, lng: this.origin.lng + p.x / this.kx }
+  toLatLng({ x, y }: XY): LatLng {
+    return {
+      lat: this.origin.lat + y / this.metersPerLat,
+      lng: this.origin.lng + x / this.metersPerLng,
+    }
   }
 }
 
-export function haversineM(a: LatLng, b: LatLng): number {
-  const dLat = (b.lat - a.lat) * RAD
-  const dLng = (b.lng - a.lng) * RAD
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * RAD) * Math.cos(b.lat * RAD) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)))
+/** 大円距離（m） */
+export function haversineM(from: LatLng, to: LatLng): number {
+  const φ1 = from.lat * DEG
+  const φ2 = to.lat * DEG
+  const halfDφ = (φ2 - φ1) / 2
+  const halfDλ = ((to.lng - from.lng) * DEG) / 2
+  const h = Math.sin(halfDφ) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(halfDλ) ** 2
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(Math.min(h, 1)))
 }
 
-/** 徒歩の分数（80 m/分） */
+/** 歩いて何分か（分速 80 m、最低 1 分） */
 export function walkMinutes(distanceM: number): number {
-  return Math.max(1, Math.round(distanceM / 80))
+  const min = Math.round(distanceM / WALK_M_PER_MIN)
+  return min < 1 ? 1 : min
 }
 
+/** 1 km 未満は 10 m 単位、それ以上は 0.1 km 単位 */
 export function formatDistance(m: number): string {
-  if (m < 1000) return `${Math.round(m / 10) * 10} m`
-  return `${(m / 1000).toFixed(1)} km`
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m / 10) * 10} m`
 }
 
-/** 点が多角形の内側か（偶奇判定）。ring は閉じていてもいなくてもよい */
+/** 各辺の両端を順に渡す */
+function forEachEdge(ring: XY[], fn: (from: XY, to: XY) => boolean | void): boolean {
+  const n = ring.length
+  for (let k = 0; k < n; k++) {
+    if (fn(ring[(k + n - 1) % n], ring[k]) === true) return true
+  }
+  return false
+}
+
+/** 点が多角形の内側か（右向きの半直線と辺の交差回数で判定）。輪は閉じていなくてもよい */
 export function pointInRing(p: XY, ring: XY[]): boolean {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]
-    const b = ring[j]
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
+  let crossings = 0
+  forEachEdge(ring, (u, v) => {
+    if ((u.y <= p.y) === (v.y <= p.y)) return
+    const xAtY = u.x + ((p.y - u.y) / (v.y - u.y)) * (v.x - u.x)
+    if (xAtY > p.x) crossings++
+  })
+  return crossings % 2 === 1
 }
 
-function cross(ax: number, ay: number, bx: number, by: number): number {
-  return ax * by - ay * bx
+const EPS = 1e-9
+
+/** o→a と o→b の外積の符号（-1, 0, 1） */
+function turn(o: XY, a: XY, b: XY): number {
+  const v = (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  return v > 0 ? 1 : v < 0 ? -1 : 0
 }
 
-/** 線分 ab と線分 cd が交わるか（端点で接する場合も含む） */
+function withinBox(p: XY, a: XY, b: XY): boolean {
+  return (
+    p.x >= Math.min(a.x, b.x) - EPS &&
+    p.x <= Math.max(a.x, b.x) + EPS &&
+    p.y >= Math.min(a.y, b.y) - EPS &&
+    p.y <= Math.max(a.y, b.y) + EPS
+  )
+}
+
+/** 線分 ab と cd が交わるか。端点が触れるだけの場合も交わるとみなす */
 export function segmentsIntersect(a: XY, b: XY, c: XY, d: XY): boolean {
-  const d1 = cross(d.x - c.x, d.y - c.y, a.x - c.x, a.y - c.y)
-  const d2 = cross(d.x - c.x, d.y - c.y, b.x - c.x, b.y - c.y)
-  const d3 = cross(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y)
-  const d4 = cross(b.x - a.x, b.y - a.y, d.x - a.x, d.y - a.y)
-  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
-  const onSeg = (p: XY, q: XY, r: XY) =>
-    Math.min(p.x, q.x) - 1e-9 <= r.x && r.x <= Math.max(p.x, q.x) + 1e-9 && Math.min(p.y, q.y) - 1e-9 <= r.y && r.y <= Math.max(p.y, q.y) + 1e-9
-  if (d1 === 0 && onSeg(c, d, a)) return true
-  if (d2 === 0 && onSeg(c, d, b)) return true
-  if (d3 === 0 && onSeg(a, b, c)) return true
-  if (d4 === 0 && onSeg(a, b, d)) return true
-  return false
+  const t1 = turn(c, d, a)
+  const t2 = turn(c, d, b)
+  const t3 = turn(a, b, c)
+  const t4 = turn(a, b, d)
+  if (t1 * t2 < 0 && t3 * t4 < 0) return true
+  return (
+    (t1 === 0 && withinBox(a, c, d)) ||
+    (t2 === 0 && withinBox(b, c, d)) ||
+    (t3 === 0 && withinBox(c, a, b)) ||
+    (t4 === 0 && withinBox(d, a, b))
+  )
 }
 
-/** 線分 ab が多角形（内部を含む）と重なるか */
+/** 線分 ab が多角形の内部か辺にかかるか */
 export function segmentHitsRing(a: XY, b: XY, ring: XY[]): boolean {
-  if (pointInRing(a, ring) || pointInRing(b, ring)) return true
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    if (segmentsIntersect(a, b, ring[j], ring[i])) return true
-  }
-  return false
+  return pointInRing(a, ring) || pointInRing(b, ring) || forEachEdge(ring, (u, v) => segmentsIntersect(a, b, u, v))
 }
 
-/** 点 p から線分 ab までの距離 */
+/** 点から線分までの最短距離 */
 export function distanceToSegment(p: XY, a: XY, b: XY): number {
-  const vx = b.x - a.x
-  const vy = b.y - a.y
-  const len2 = vx * vx + vy * vy
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2))
-  return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy))
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  let t = lenSq > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq : 0
+  t = Math.min(1, Math.max(0, t))
+  return Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y)
 }
 
+/** 多角形の面積（向きによらず正） */
 export function ringArea(ring: XY[]): number {
-  let s = 0
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) s += (ring[j].x + ring[i].x) * (ring[j].y - ring[i].y)
-  return Math.abs(s) / 2
+  let twice = 0
+  forEachEdge(ring, (u, v) => {
+    twice += u.x * v.y - v.x * u.y
+  })
+  return Math.abs(twice) / 2
 }
 
+/** 頂点の平均。閉じた輪（先頭と末尾が同じ点）なら末尾を数えない */
 export function centroidLatLng(points: LatLng[]): LatLng {
-  // 閉じた輪の最後の点（最初と同じ）は数えない
-  const pts = points.length > 1 && points[0].lat === points[points.length - 1].lat && points[0].lng === points[points.length - 1].lng ? points.slice(0, -1) : points
-  let lat = 0
-  let lng = 0
-  for (const p of pts) {
-    lat += p.lat
-    lng += p.lng
+  const first = points[0]
+  const last = points[points.length - 1]
+  const closed = points.length > 1 && first.lat === last.lat && first.lng === last.lng
+  const used = closed ? points.length - 1 : points.length
+  let sumLat = 0
+  let sumLng = 0
+  for (let i = 0; i < used; i++) {
+    sumLat += points[i].lat
+    sumLng += points[i].lng
   }
-  return { lat: lat / pts.length, lng: lng / pts.length }
+  return { lat: sumLat / used, lng: sumLng / used }
 }
 
 export function boundsOf(points: LatLng[]): Bounds {
-  let south = Infinity
-  let north = -Infinity
-  let west = Infinity
-  let east = -Infinity
-  for (const p of points) {
-    south = Math.min(south, p.lat)
-    north = Math.max(north, p.lat)
-    west = Math.min(west, p.lng)
-    east = Math.max(east, p.lng)
+  const lats = points.map((p) => p.lat)
+  const lngs = points.map((p) => p.lng)
+  return {
+    south: Math.min(...lats),
+    north: Math.max(...lats),
+    west: Math.min(...lngs),
+    east: Math.max(...lngs),
   }
-  return { south, west, north, east }
 }

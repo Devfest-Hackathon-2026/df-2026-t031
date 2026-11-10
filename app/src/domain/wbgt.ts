@@ -1,17 +1,25 @@
 import type { WeatherCondition, WeatherHour } from './types.ts'
 
+// 2026-11-10 期間内に書き直し。
+// 暑さ指数（WBGT）を天気の値から推定する。公式の予報値は環境省「熱中症予防情報サイト」（申込制）で得られる。
+
 /**
- * 暑さ指数（WBGT）の推定。
- * 気温・湿度・日射量・風速からの簡易推定式（小野・登内 2014 の式とされるもの。係数は実装前に原典で要確認）：
- *   WBGT = 0.735·Ta + 0.0374·RH + 0.00292·Ta·RH + 7.619·SR − 4.557·SR² − 0.0572·WS − 4.064
- *   Ta: 気温[℃] RH: 相対湿度[%] SR: 日射量[kW/m²] WS: 風速[m/s]
- * 公式の予測値・実況値は環境省「熱中症予防情報サイト」の電子情報提供サービス（申し込み制）で得られる。
+ * 気象値からの WBGT 推定式（小野・登内 2014 とされる式。係数は原典で要確認）。
+ * @param ta 気温 [℃]
+ * @param rh 相対湿度 [%]
+ * @param sr 日射量 [kW/m²]
+ * @param ws 風速 [m/s]
  */
-export function wbgtFormula(ta: number, rh: number, srKw: number, ws: number): number {
-  return 0.735 * ta + 0.0374 * rh + 0.00292 * ta * rh + 7.619 * srKw - 4.557 * srKw * srKw - 0.0572 * ws - 4.064
+export function wbgtFormula(ta: number, rh: number, sr: number, ws: number): number {
+  const temp = 0.735 * ta
+  const humid = 0.0374 * rh + 0.00292 * ta * rh
+  const solar = 7.619 * sr - 4.557 * sr ** 2
+  const wind = -0.0572 * ws
+  return temp + humid + solar + wind - 4.064
 }
 
-const CLOUD_FACTOR: Record<WeatherCondition, number> = {
+/** 雲や雨で日射がどれだけ残るか（晴れ=1） */
+const SUNLIGHT_SHARE: Record<WeatherCondition, number> = {
   clear: 1,
   'partly-cloudy': 0.7,
   cloudy: 0.35,
@@ -22,28 +30,36 @@ const CLOUD_FACTOR: Record<WeatherCondition, number> = {
   unknown: 0.6,
 }
 
-/** 日射量（kW/m²）の目安。天気と太陽の高度から */
+/** 晴天時の地表日射のおおよその上限（kW/m²） */
+const CLEAR_SKY_KW = 1.05
+const MAX_SOLAR_KW = 1.2
+
+/** 天気と太陽高度（度）から日射量（kW/m²）を見積もる。夜は 0 */
 export function estimateSolarKw(condition: WeatherCondition, sunAltitudeDeg: number): number {
-  if (sunAltitudeDeg <= 0) return 0
-  return 1.05 * Math.sin((sunAltitudeDeg * Math.PI) / 180) * CLOUD_FACTOR[condition]
+  if (!(sunAltitudeDeg > 0)) return 0
+  return CLEAR_SKY_KW * SUNLIGHT_SHARE[condition] * Math.sin((sunAltitudeDeg / 180) * Math.PI)
 }
 
-/** 日なたの暑さ指数の推定値 */
+/** 日なたでの WBGT 推定値（小数 1 桁）。湿度・風速が無ければ 60% / 2 m/s とみなす */
 export function estimateWbgt(w: WeatherHour, sunAltitudeDeg: number): number {
-  const sr = w.solarRadiation !== null ? Math.max(0, w.solarRadiation) / 1000 : estimateSolarKw(w.condition, sunAltitudeDeg)
-  const v = wbgtFormula(w.temperatureC, w.humidity ?? 60, Math.min(1.2, sr), w.windSpeed ?? 2)
-  return Math.round(v * 10) / 10
+  const measuredKw = w.solarRadiation === null ? null : Math.max(w.solarRadiation, 0) / 1000
+  const sr = Math.min(MAX_SOLAR_KW, measuredKw ?? estimateSolarKw(w.condition, sunAltitudeDeg))
+  const value = wbgtFormula(w.temperatureC, w.humidity ?? 60, sr, w.windSpeed ?? 2)
+  return Math.round(value * 10) / 10
 }
 
 export type WbgtLevel = 'danger' | 'severe' | 'warning' | 'caution' | 'safe'
 
-/** 日本生気象学会の指針の区分 */
+/** 日本生気象学会「日常生活に関する指針」の区分（下限値の高い順） */
+const LEVEL_FLOORS: ReadonlyArray<[number, WbgtLevel]> = [
+  [31, 'danger'],
+  [28, 'severe'],
+  [25, 'warning'],
+  [21, 'caution'],
+]
+
 export function wbgtLevel(v: number): WbgtLevel {
-  if (v >= 31) return 'danger'
-  if (v >= 28) return 'severe'
-  if (v >= 25) return 'warning'
-  if (v >= 21) return 'caution'
-  return 'safe'
+  return LEVEL_FLOORS.find(([floor]) => v >= floor)?.[1] ?? 'safe'
 }
 
 export const WBGT_LABEL: Record<WbgtLevel, string> = {

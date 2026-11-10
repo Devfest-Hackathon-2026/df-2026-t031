@@ -1,167 +1,251 @@
 import { centroidLatLng, LocalProjection, pointInRing, ringArea } from './geo.ts'
 import type { Coord, SlimElement, SlimOsm } from './osmQuery.ts'
-import type { AreaDataset, Attractor, Building, LatLng, ParkArea, Spot, SpotKind, Tree, TriState } from './types.ts'
+import type { AreaDataset, Attractor, Building, LatLng, ParkArea, Spot, SpotKind, Tree, TriState, XY } from './types.ts'
 
-/**
- * OpenStreetMap のデータ（slimOverpass の出力）を、アプリのデータに変換する。
- * 同梱スナップショットとライブ取得の両方がここを通る。
- */
+// 2026-11-10 期間内に書き直し。
+// 軽量化した OSM データ（osmQuery の slimOverpass の出力）を、アプリで使う AreaDataset に変換する。
+// 同梱のスナップショットも、ライブ取得したデータも、どちらもここを通る。
 
-/** 1 階あたりの高さ（m）。階数タグからの推定に使う */
+/** 階数タグから高さを出すときの 1 階分（m） */
 export const LEVEL_HEIGHT_M = 3.2
-/** 樹木の高さ・樹冠の半径・枝下の高さ（タグがないときの仮定値） */
+/** 樹木のタグが無いときに使う値（m） */
 export const TREE_DEFAULTS = { height: 8, crownRadius: 3, crownBase: 2.5 }
 
-/** 樹冠の下端の高さ（m）。低い木は高さの 4 割 */
-export const treeCrownBase = (height: number) => Math.min(TREE_DEFAULTS.crownBase, height * 0.4)
-
-const toLatLng = (c: Coord): LatLng => ({ lat: c[0], lng: c[1] })
-
-/** "12", "12 m", "12.5m", "40 ft", "12;15" → m。読めなければ null */
-export function parseLength(v: string | undefined): number | null {
-  if (!v) return null
-  const m = v.trim().match(/^(-?\d+(?:[.,]\d+)?)\s*(m|ft|')?/i)
-  if (!m) return null
-  const n = Number(m[1].replace(',', '.'))
-  if (!Number.isFinite(n)) return null
-  const unit = (m[2] ?? 'm').toLowerCase()
-  return unit === 'ft' || unit === "'" ? n * 0.3048 : n
+/** 樹冠の下端（m）。背の低い木は高さの 40% までにする */
+export function treeCrownBase(height: number): number {
+  return Math.min(height * 0.4, TREE_DEFAULTS.crownBase)
 }
 
-function parseLevels(v: string | undefined): number | null {
-  const n = parseLength(v)
-  return n !== null && n >= 0 ? n : null
+type Tags = Record<string, string>
+
+const latLngOf = ([lat, lng]: Coord): LatLng => ({ lat, lng })
+const round1 = (n: number) => Math.round(n * 10) / 10
+const nameOf = (tags: Tags): string | null => tags['name:ja'] ?? tags.name ?? null
+
+const FEET_TO_M = 0.3048
+const LENGTH_RE = /^(-?\d+(?:[.,]\d+)?)\s*(m|ft|')?/i
+
+/** "12" / "12 m" / "12.5m" / "40 ft" / "12;15" などを m に直す。読めなければ null */
+export function parseLength(raw: string | undefined): number | null {
+  const match = raw ? LENGTH_RE.exec(raw.trim()) : null
+  if (!match) return null
+  const value = Number(match[1].replace(',', '.'))
+  if (!Number.isFinite(value)) return null
+  const isFeet = /^(ft|')$/i.test(match[2] ?? '')
+  return isFeet ? value * FEET_TO_M : value
 }
 
-function tri(v: string | undefined): TriState {
-  if (v === 'yes') return 'yes'
-  if (v === 'no') return 'no'
-  return 'unknown'
+const nonNegative = (n: number | null) => (n !== null && n >= 0 ? n : null)
+
+const triState = (v: string | undefined): TriState => (v === 'yes' || v === 'no' ? v : 'unknown')
+
+/** amenity / leisure タグから休憩スポットの種類を決める */
+const SPOT_BY_AMENITY: Record<string, SpotKind> = {
+  bench: 'bench',
+  shelter: 'shelter',
+  toilets: 'toilet',
+  waste_basket: 'trash',
+  recycling: 'trash',
+  drinking_water: 'water',
 }
 
-function spotKindOf(tags: Record<string, string>): SpotKind | null {
-  switch (tags.amenity) {
-    case 'bench':
-      return 'bench'
-    case 'shelter':
-      return 'shelter'
-    case 'toilets':
-      return 'toilet'
-    case 'waste_basket':
-    case 'recycling':
-      return 'trash'
-    case 'drinking_water':
-      return 'water'
-  }
-  if (tags.leisure === 'picnic_table') return 'picnic'
-  return null
+function spotKindOf(tags: Tags): SpotKind | null {
+  const byAmenity = tags.amenity ? SPOT_BY_AMENITY[tags.amenity] : undefined
+  if (byAmenity) return byAmenity
+  return tags.leisure === 'picnic_table' ? 'picnic' : null
 }
 
-function recyclingNote(tags: Record<string, string>): string | undefined {
+const RECYCLING_LABELS: ReadonlyArray<[tag: string, label: string]> = [
+  ['recycling:plastic_bottles', 'ペットボトル'],
+  ['recycling:cans', '缶'],
+  ['recycling:glass_bottles', 'びん'],
+  ['recycling:paper', '紙'],
+]
+
+function recyclingNote(tags: Tags): string | undefined {
   if (tags.amenity !== 'recycling') return undefined
-  const kinds: string[] = []
-  if (tags['recycling:plastic_bottles'] === 'yes') kinds.push('ペットボトル')
-  if (tags['recycling:cans'] === 'yes') kinds.push('缶')
-  if (tags['recycling:glass_bottles'] === 'yes') kinds.push('びん')
-  if (tags['recycling:paper'] === 'yes') kinds.push('紙')
-  return kinds.length ? `回収ボックス（${kinds.join('・')}）` : '回収ボックス'
+  const accepted = RECYCLING_LABELS.filter(([tag]) => tags[tag] === 'yes').map(([, label]) => label)
+  return accepted.length > 0 ? `回収ボックス（${accepted.join('・')}）` : '回収ボックス'
 }
 
-/** 高さタグのない建物の仮定値（m）。種類と大きさから決める。画面には「仮定」と表示する */
-export function assumedBuildingHeight(tags: Record<string, string>, areaM2: number): number {
-  const b = tags.building ?? tags['building:part'] ?? 'yes'
-  if (['house', 'detached', 'semidetached_house', 'terrace', 'residential'].includes(b)) return 7
-  if (['garage', 'garages', 'shed', 'hut', 'kiosk', 'toilets', 'service', 'cabin'].includes(b)) return 3.5
-  if (['apartments', 'commercial', 'office', 'retail', 'hotel'].includes(b)) return areaM2 > 1500 ? 30 : 18
-  if (areaM2 < 200) return 6
-  if (areaM2 < 1500) return 12
-  return 18
+const LOW_RISE = new Set(['house', 'detached', 'semidetached_house', 'terrace', 'residential'])
+const TINY = new Set(['garage', 'garages', 'shed', 'hut', 'kiosk', 'toilets', 'service', 'cabin'])
+const MID_RISE = new Set(['apartments', 'commercial', 'office', 'retail', 'hotel'])
+
+/** 高さも階数も無い建物の仮の高さ（m）。用途と床面積で決め、画面では「仮定」と出す */
+export function assumedBuildingHeight(tags: Tags, areaM2: number): number {
+  const use = tags.building ?? tags['building:part'] ?? 'yes'
+  if (LOW_RISE.has(use)) return 7
+  if (TINY.has(use)) return 3.5
+  if (MID_RISE.has(use)) return areaM2 > 1500 ? 30 : 18
+  if (areaM2 >= 1500) return 18
+  return areaM2 >= 200 ? 12 : 6
 }
 
-interface RawBuilding {
-  b: Building
-  ringXY: { x: number; y: number }[]
+interface BuildingDraft {
+  building: Building
+  ring: XY[]
   isPart: boolean
-  hasExplicitHeight: boolean
 }
 
-function buildingFrom(id: string, ring: Coord[], tags: Record<string, string>, proj: LocalProjection): RawBuilding | null {
-  if (ring.length < 4) return null
-  const isPart = !!tags['building:part'] && !tags.building
-  const value = tags.building ?? tags['building:part']
-  if (!value || value === 'no') return null
-  const footprint = ring.map(toLatLng)
-  const ringXY = footprint.map((p) => proj.toXY(p))
-  const area = ringArea(ringXY)
-  if (area < 4) return null
+/** 屋根の厚みとみなす値（m）。下端が分からない屋根に使う */
+const ROOF_THICKNESS_M = 1.5
+const MIN_FOOTPRINT_M2 = 4
 
-  const isRoof = value === 'roof' || value === 'carport'
-  const h = parseLength(tags.height)
-  const lv = parseLevels(tags['building:levels'])
-  const minH = parseLength(tags.min_height)
-  const minLv = parseLevels(tags['building:min_level'])
+function resolveHeight(tags: Tags, isRoof: boolean, area: number): Pick<Building, 'height' | 'heightSource'> {
+  const tagged = parseLength(tags.height)
+  if (tagged !== null && tagged > 0) return { height: tagged, heightSource: 'measured' }
+  const levels = nonNegative(parseLength(tags['building:levels']))
+  if (levels !== null && levels > 0) return { height: levels * LEVEL_HEIGHT_M, heightSource: 'levels' }
+  return { height: isRoof ? 4 : assumedBuildingHeight(tags, area), heightSource: 'assumed' }
+}
 
-  let height: number
-  let heightSource: Building['heightSource']
-  if (h !== null && h > 0) {
-    height = h
-    heightSource = 'measured'
-  } else if (lv !== null && lv > 0) {
-    height = lv * LEVEL_HEIGHT_M
-    heightSource = 'levels'
-  } else if (isRoof) {
-    height = 4
-    heightSource = 'assumed'
-  } else {
-    height = assumedBuildingHeight(tags, area)
-    heightSource = 'assumed'
-  }
-  let minHeight = minH ?? (minLv !== null ? minLv * LEVEL_HEIGHT_M : 0)
-  // 屋根だけの構造物は、下端の高さがなければ「屋根の厚み 1.5m」とみなす（下は日陰だが人は通れる）
-  if (isRoof && minH === null && minLv === null) minHeight = Math.max(0, height - 1.5)
-  minHeight = Math.min(minHeight, height - 0.5)
+function draftBuilding(id: string, coords: Coord[], tags: Tags, proj: LocalProjection): BuildingDraft | null {
+  const use = tags.building ?? tags['building:part']
+  if (coords.length < 4 || !use || use === 'no') return null
+
+  const footprint = coords.map(latLngOf)
+  const ring = footprint.map((p) => proj.toXY(p))
+  const area = ringArea(ring)
+  if (area < MIN_FOOTPRINT_M2) return null
+
+  const isPart = Boolean(tags['building:part']) && !tags.building
+  const isRoof = use === 'roof' || use === 'carport'
+  const { height, heightSource } = resolveHeight(tags, isRoof, area)
+
+  const minTagged = parseLength(tags.min_height)
+  const minLevels = nonNegative(parseLength(tags['building:min_level']))
+  let bottom: number
+  if (minTagged !== null) bottom = minTagged
+  else if (minLevels !== null) bottom = minLevels * LEVEL_HEIGHT_M
+  else bottom = isRoof ? Math.max(0, height - ROOF_THICKNESS_M) // 下は日陰だが人が通れる
+  : 0
+  bottom = Math.min(bottom, height - 0.5)
 
   return {
-    b: {
+    building: {
       id,
       kind: isRoof ? 'roof' : isPart ? 'part' : 'building',
       footprint,
-      height: Math.round(height * 10) / 10,
-      minHeight: Math.max(0, Math.round(minHeight * 10) / 10),
+      height: round1(height),
+      minHeight: Math.max(0, round1(bottom)),
       heightSource,
       name: tags['name:ja'] ?? tags.name,
     },
-    ringXY,
+    ring,
     isPart,
-    hasExplicitHeight: heightSource !== 'assumed',
   }
 }
 
-function elementRings(e: SlimElement): Coord[][] {
-  if (e.t === 'w') return [e.g]
-  if (e.t === 'r') return e.outer
-  return []
+function ringsOf(e: SlimElement): Coord[][] {
+  switch (e.t) {
+    case 'w':
+      return [e.g]
+    case 'r':
+      return e.outer
+    default:
+      return []
+  }
 }
 
-function elementCenter(e: SlimElement): LatLng {
-  if (e.t === 'n') return toLatLng(e.p)
-  const rings = elementRings(e)
-  return centroidLatLng((rings[0] ?? []).map(toLatLng))
+function centerOf(e: SlimElement): LatLng {
+  if (e.t === 'n') return latLngOf(e.p)
+  const outer = ringsOf(e)[0] ?? []
+  return centroidLatLng(outer.map(latLngOf))
 }
 
-const refOf = (e: SlimElement) => `${e.t === 'n' ? 'node' : e.t === 'w' ? 'way' : 'relation'}/${e.id}`
-const idOf = (e: SlimElement) => `osm:${e.t}${e.id}`
+const OSM_TYPE = { n: 'node', w: 'way', r: 'relation' } as const
+const osmRef = (e: SlimElement) => `${OSM_TYPE[e.t]}/${e.id}`
+const appId = (e: SlimElement) => `osm:${e.t}${e.id}`
 
-function attractorKind(tags: Record<string, string>): Attractor['kind'] | null {
+const TOURISM = new Set(['attraction', 'museum', 'viewpoint', 'gallery', 'theme_park'])
+
+/** 人が集まる場所（駅・観光地・商業施設・公園）の種類 */
+function attractorKind(tags: Tags): Attractor['kind'] | null {
   if (tags.railway === 'station' || tags.railway === 'subway_entrance') return 'station'
-  if (tags.tourism && ['attraction', 'museum', 'viewpoint', 'gallery', 'theme_park'].includes(tags.tourism)) return 'tourism'
+  if (tags.tourism !== undefined && TOURISM.has(tags.tourism)) return 'tourism'
   if (tags.shop === 'mall' || tags.shop === 'department_store') return 'mall'
-  if (tags.leisure === 'park') return 'park'
-  return null
+  return tags.leisure === 'park' ? 'park' : null
+}
+
+const WHEELCHAIR = new Set(['yes', 'limited', 'no'])
+
+function toSpot(e: SlimElement, kind: SpotKind): Spot {
+  const tags = e.tags
+  const seats = parseLength(tags.seats ?? tags.capacity)
+  const isShelter = kind === 'shelter'
+  const coveredTagged = tags.covered === 'yes' || tags.covered === 'no'
+  return {
+    id: appId(e),
+    kind,
+    name: nameOf(tags),
+    position: centerOf(e),
+    origin: 'osm',
+    seats: seats !== null && seats > 0 && seats < 100 ? Math.round(seats) : null,
+    roof: isShelter ? 'yes' : triState(tags.covered),
+    roofSource: isShelter ? 'kind' : coveredTagged ? 'tag' : null,
+    backrest: triState(tags.backrest),
+    wheelchair: WHEELCHAIR.has(tags.wheelchair) ? (tags.wheelchair as Spot['wheelchair']) : 'unknown',
+    note: recyclingNote(tags),
+    ref: osmRef(e),
+  }
+}
+
+function toTree(e: Extract<SlimElement, { t: 'n' }>): Tree {
+  const height = parseLength(e.tags.height)
+  const crownDiameter = parseLength(e.tags.diameter_crown)
+  const heightOk = height !== null && height > 1 && height < 60
+  const crownOk = crownDiameter !== null && crownDiameter > 0.5 && crownDiameter < 40
+  return {
+    id: appId(e),
+    position: latLngOf(e.p),
+    height: heightOk ? height : TREE_DEFAULTS.height,
+    crownRadius: crownOk ? crownDiameter / 2 : TREE_DEFAULTS.crownRadius,
+    heightSource: height ? 'measured' : 'assumed',
+  }
+}
+
+/**
+ * 高さの分からない建物の外形の中に「建物の一部（building:part）」があるなら、
+ * 外形のほうは捨てて一部のほうを使う（一部のほうが形も高さも正確）。
+ */
+function dropShellsWithParts(drafts: BuildingDraft[], proj: LocalProjection): Building[] {
+  const partCenters = drafts.filter((d) => d.isPart).map((d) => proj.toXY(centroidLatLng(d.building.footprint)))
+  const isRedundantShell = (d: BuildingDraft) =>
+    !d.isPart &&
+    d.building.kind === 'building' &&
+    d.building.heightSource === 'assumed' &&
+    partCenters.some((c) => pointInRing(c, d.ring))
+  return drafts.filter((d) => !isRedundantShell(d)).map((d) => d.building)
+}
+
+/**
+ * タグで屋根の有無が分からないスポットを、建物の形から推定する。
+ * 屋根・宙に浮いた建物の一部の下 → 屋根あり、建物の中 → 屋根あり、それ以外 → 屋根なし。
+ */
+function inferRoofs(spots: Spot[], drafts: BuildingDraft[], proj: LocalProjection): void {
+  const overhead = drafts.filter(({ building: b }) => b.kind === 'roof' || (b.kind === 'part' && b.minHeight > 0))
+  const enclosed = drafts.filter(({ building: b }) => b.kind !== 'roof' && b.minHeight === 0)
+  for (const spot of spots) {
+    if (spot.roofSource === 'tag' || spot.roofSource === 'kind') continue
+    const p = proj.toXY(spot.position)
+    const under = (d: BuildingDraft) => pointInRing(p, d.ring)
+    if (overhead.some(under)) {
+      spot.roof = 'yes'
+      spot.roofSource = 'roof-polygon'
+    } else if (enclosed.some(under)) {
+      spot.roof = 'yes'
+      spot.roofSource = 'inside-building'
+    } else {
+      // OSM は「屋根なし」をわざわざタグにしないことが多いので、なしと推定する
+      spot.roof = 'no'
+      spot.roofSource = null
+    }
+  }
 }
 
 export interface ParseOptions {
-  /** 投影の基準点（エリアの中心） */
+  /** 平面座標の原点（エリアの中心） */
   origin: LatLng
   live: boolean
 }
@@ -172,97 +256,44 @@ export function parseOsm(data: SlimOsm, opts: ParseOptions): AreaDataset {
   const trees: Tree[] = []
   const attractors: Attractor[] = []
   const parks: ParkArea[] = []
-  const rawBuildings: RawBuilding[] = []
+  const drafts: BuildingDraft[] = []
 
   for (const e of data.elements) {
-    const tags = e.tags
-    const kind = spotKindOf(tags)
-    if (kind) {
-      const seats = parseLength(tags.seats ?? tags.capacity)
-      spots.push({
-        id: idOf(e),
-        kind,
-        name: tags['name:ja'] ?? tags.name ?? null,
-        position: elementCenter(e),
-        origin: 'osm',
-        seats: seats !== null && seats > 0 && seats < 100 ? Math.round(seats) : null,
-        roof: kind === 'shelter' ? 'yes' : tri(tags.covered),
-        roofSource: kind === 'shelter' ? 'kind' : tags.covered === 'yes' || tags.covered === 'no' ? 'tag' : null,
-        backrest: tri(tags.backrest),
-        wheelchair: tags.wheelchair === 'yes' || tags.wheelchair === 'limited' || tags.wheelchair === 'no' ? tags.wheelchair : 'unknown',
-        note: recyclingNote(tags),
-        ref: refOf(e),
-      })
-    }
+    const { tags } = e
 
-    if (tags.natural === 'tree' && e.t === 'n') {
-      const h = parseLength(tags.height)
-      const crown = parseLength(tags.diameter_crown)
-      trees.push({
-        id: idOf(e),
-        position: toLatLng(e.p),
-        height: h && h > 1 && h < 60 ? h : TREE_DEFAULTS.height,
-        crownRadius: crown && crown > 0.5 && crown < 40 ? crown / 2 : TREE_DEFAULTS.crownRadius,
-        heightSource: h ? 'measured' : 'assumed',
-      })
-    }
+    const spotKind = spotKindOf(tags)
+    if (spotKind) spots.push(toSpot(e, spotKind))
 
-    const ak = attractorKind(tags)
-    if (ak) attractors.push({ id: idOf(e), kind: ak, name: tags['name:ja'] ?? tags.name ?? null, position: elementCenter(e) })
+    if (e.t === 'n' && tags.natural === 'tree') trees.push(toTree(e))
+
+    const crowd = attractorKind(tags)
+    if (crowd) attractors.push({ id: appId(e), kind: crowd, name: nameOf(tags), position: centerOf(e) })
 
     if (tags.leisure === 'park') {
-      for (const ring of elementRings(e)) parks.push({ id: `${idOf(e)}-${parks.length}`, name: tags['name:ja'] ?? tags.name ?? null, ring: ring.map(toLatLng) })
+      for (const ring of ringsOf(e)) {
+        parks.push({ id: `${appId(e)}-${parks.length}`, name: nameOf(tags), ring: ring.map(latLngOf) })
+      }
     }
 
-    if ((tags.building || tags['building:part']) && e.t !== 'n') {
-      elementRings(e).forEach((ring, i) => {
-        const rb = buildingFrom(i === 0 ? idOf(e) : `${idOf(e)}-${i}`, ring, tags, proj)
-        if (rb) rawBuildings.push(rb)
+    if (e.t !== 'n' && (tags.building || tags['building:part'])) {
+      ringsOf(e).forEach((ring, index) => {
+        const id = index === 0 ? appId(e) : `${appId(e)}-${index}`
+        const draft = draftBuilding(id, ring, tags, proj)
+        if (draft) drafts.push(draft)
       })
     }
   }
 
-  // 建物の外形に高さがなく、中に高さ付きの「建物の一部」があるときは、外形は使わない（一部のほうが正確）
-  const parts = rawBuildings.filter((r) => r.isPart)
-  const partCenters = parts.map((p) => {
-    const c = centroidLatLng(p.b.footprint)
-    return proj.toXY(c)
-  })
-  const buildings: Building[] = []
-  for (const r of rawBuildings) {
-    if (!r.isPart && !r.hasExplicitHeight && r.b.kind === 'building') {
-      if (partCenters.some((c) => pointInRing(c, r.ringXY))) continue
-    }
-    buildings.push(r.b)
-  }
-
-  // ベンチなどが屋根・建物の中にあれば「屋根あり（推定）」にする
-  const roofLike = rawBuildings.filter((r) => r.b.kind === 'roof' || (r.b.kind === 'part' && r.b.minHeight > 0))
-  const solid = rawBuildings.filter((r) => r.b.kind !== 'roof' && r.b.minHeight === 0)
-  for (const s of spots) {
-    if (s.roofSource === 'tag' || s.roofSource === 'kind') continue
-    const p = proj.toXY(s.position)
-    if (roofLike.some((r) => pointInRing(p, r.ringXY))) {
-      s.roof = 'yes'
-      s.roofSource = 'roof-polygon'
-    } else if (solid.some((r) => pointInRing(p, r.ringXY))) {
-      s.roof = 'yes'
-      s.roofSource = 'inside-building'
-    } else {
-      // OSM では屋根がなければタグを付けないことが多い。「屋根なし（推定）」として扱う
-      s.roof = 'no'
-      s.roofSource = null
-    }
-  }
+  inferRoofs(spots, drafts, proj)
 
   return {
     spots,
-    buildings,
+    buildings: dropShellsWithParts(drafts, proj),
     trees,
     attractors,
     parks,
     meta: {
-      sourceLabel: opts.live ? 'OpenStreetMap（Overpass API でライブ取得）' : 'OpenStreetMap（アプリ同梱のスナップショット）',
+      sourceLabel: `OpenStreetMap（${opts.live ? 'Overpass API でライブ取得' : 'アプリ同梱のスナップショット'}）`,
       attribution: '© OpenStreetMap contributors (ODbL)',
       asOf: data.osmBase ?? data.fetchedAt,
       live: opts.live,
@@ -270,8 +301,9 @@ export function parseOsm(data: SlimOsm, opts: ParseOptions): AreaDataset {
   }
 }
 
+/** 建物の高さの出どころ別の件数 */
 export function heightStats(buildings: Building[]): Record<Building['heightSource'], number> {
-  const s = { measured: 0, levels: 0, assumed: 0, plateau: 0 }
-  for (const b of buildings) s[b.heightSource]++
-  return s
+  const counts: Record<Building['heightSource'], number> = { measured: 0, levels: 0, assumed: 0, plateau: 0 }
+  buildings.forEach((b) => counts[b.heightSource]++)
+  return counts
 }
