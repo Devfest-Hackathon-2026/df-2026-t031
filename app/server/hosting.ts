@@ -1,6 +1,8 @@
 /**
- * 公開時（Cloud Run）の設定。PUBLIC_ORIGIN が無ければ従来どおりローカル開発専用（127.0.0.1 / localhost だけ受け付ける）。
- * PUBLIC_ORIGIN=https://epoku-xxxx.a.run.app のように置くと、そのホストだけを受け付け、画面（dist）も同じオリジンから配る。
+ * 公開時の設定。PUBLIC_ORIGIN も Vercel の環境変数も無ければ従来どおりローカル開発専用（127.0.0.1 / localhost だけ受け付ける）。
+ * PUBLIC_ORIGIN=https://epoku.example のように置くと、そのホストだけを受け付ける（Node サーバー単体で動かすときは画面 dist も同じオリジンから配る）。
+ * Vercel では PUBLIC_ORIGIN が無くても、本番ドメイン（VERCEL_PROJECT_PRODUCTION_URL）を公開オリジンとして扱い、
+ * そのデプロイ自身の URL（VERCEL_URL / VERCEL_BRANCH_URL）も受け付ける。
  */
 import type {IncomingMessage,ServerResponse} from 'node:http'
 import {readFile,stat} from 'node:fs/promises'
@@ -8,16 +10,22 @@ import {extname,join,normalize,resolve,sep} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 /** 末尾の / を除いた公開オリジン。形式が不正なら null（ローカル扱い） */
-export function publicOrigin(env=process.env):string|null{const raw=env.PUBLIC_ORIGIN?.trim();if(!raw)return null;try{const u=new URL(raw);return (u.protocol==='https:'||u.protocol==='http:')&&u.pathname==='/'&&!u.search?u.origin:null}catch{return null}}
+export function publicOrigin(env=process.env):string|null{
+ const raw=env.PUBLIC_ORIGIN?.trim()||(env.VERCEL_PROJECT_PRODUCTION_URL?`https://${env.VERCEL_PROJECT_PRODUCTION_URL.trim()}`:'')
+ if(!raw)return null;try{const u=new URL(raw);return (u.protocol==='https:'||u.protocol==='http:')&&u.pathname==='/'&&!u.search?u.origin:null}catch{return null}
+}
+const HOST_NAME=/^[a-z0-9.-]+$/i
+/** 公開オリジンのほかに受け付けるオリジン。Vercel が付けるそのデプロイ自身の URL（プレビューを含む） */
+export function extraOrigins(env=process.env):string[]{return ['VERCEL_URL','VERCEL_BRANCH_URL'].map(k=>env[k]?.trim()||'').filter(h=>HOST_NAME.test(h)).map(h=>`https://${h.toLowerCase()}`)}
 const LOCAL_HOST=/^(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/
 const LOCAL_NAMES=['127.0.0.1','localhost','[::1]']
-/** Host と Origin の確認。公開時は PUBLIC_ORIGIN と一致するものだけ、開発時はローカルだけ */
-export function allowedRequest(req:IncomingMessage,origin=publicOrigin()){
+/** Host と Origin の確認。公開時は公開オリジン（と Vercel のデプロイ URL）と一致するものだけ、開発時はローカルだけ */
+export function allowedRequest(req:IncomingMessage,origin=publicOrigin(),extra=extraOrigins()){
  const host=req.headers.host||'',sent=req.headers.origin
- if(origin){if(host!==new URL(origin).host)return false;return !sent||sent===origin}
+ if(origin){const match=[origin,...extra].find(o=>new URL(o).host===host);if(!match)return false;return !sent||sent===match}
  if(!LOCAL_HOST.test(host))return false;if(!sent)return true;try{return LOCAL_NAMES.includes(new URL(sent).hostname)}catch{return false}
 }
-/** 回数制限のキー。Cloud Run では前段が X-Forwarded-For の末尾に接続元を足すので末尾を使う（先頭は利用者が偽れる） */
+/** 回数制限のキー。Cloud Run や Vercel では前段が X-Forwarded-For の末尾に接続元を足す（または上書きする）ので末尾を使う（先頭は利用者が偽れる） */
 export function clientKey(req:IncomingMessage,origin=publicOrigin()){if(origin){const xff=String(req.headers['x-forwarded-for']||'').split(',').map(s=>s.trim()).filter(Boolean);if(xff.length)return xff[xff.length-1]}return req.socket.remoteAddress||'local'}
 /** https で公開しているときだけ Cookie に Secure を付ける */
 export const secureCookie=(origin=publicOrigin())=>!!origin?.startsWith('https:')

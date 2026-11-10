@@ -201,32 +201,35 @@ function sendFailure(res: ServerResponse, error: unknown) {
   }
 }
 
+/** リクエスト 1 件を処理する。ローカル／Node サーバーでは createApiServer から、Vercel では server/vercel.ts から呼ぶ */
+export async function handleRequest(req: IncomingMessage, res: ServerResponse) {
+  if (!allowedRequest(req)) {
+    send(res, 403, { error: publicOrigin() ? 'このホストからは使えません。' : 'ローカル開発用APIです。' })
+    return
+  }
+  if (await serveStatic(req, res).catch(() => false)) return
+  if (req.url === '/api/health') {
+    send(res, 200, { gemini: !!geminiProvider(), geminiProvider: geminiProvider(), weather: !!process.env.GOOGLE_WEATHER_API_KEY })
+    return
+  }
+  // ログイン状態の確認は回数制限の前に通す（画面を開くたびに呼ぶため）
+  if (req.url === '/api/auth/status' && (await handleGoogleRoutes(req, res, send))) return
+  if (overRateLimit(clientKey(req))) {
+    send(res, 429, { error: '1分ほど待ってから再実行してください。' })
+    return
+  }
+  try {
+    if (await handleGoogleRoutes(req, res, send)) return
+    if (req.url === '/api/explain' && req.method === 'POST') return await handleExplain(req, res)
+    if (req.url === '/api/weather' && req.method === 'GET') return await handleWeather(res)
+    send(res, 404, { error: 'APIが見つかりません。' })
+  } catch (error) {
+    sendFailure(res, error)
+  }
+}
+
 export function createApiServer() {
-  return createServer(async (req, res) => {
-    if (!allowedRequest(req)) {
-      send(res, 403, { error: publicOrigin() ? 'このホストからは使えません。' : 'ローカル開発用APIです。' })
-      return
-    }
-    if (await serveStatic(req, res).catch(() => false)) return
-    if (req.url === '/api/health') {
-      send(res, 200, { gemini: !!geminiProvider(), geminiProvider: geminiProvider(), weather: !!process.env.GOOGLE_WEATHER_API_KEY })
-      return
-    }
-    // ログイン状態の確認は回数制限の前に通す（画面を開くたびに呼ぶため）
-    if (req.url === '/api/auth/status' && (await handleGoogleRoutes(req, res, send))) return
-    if (overRateLimit(clientKey(req))) {
-      send(res, 429, { error: '1分ほど待ってから再実行してください。' })
-      return
-    }
-    try {
-      if (await handleGoogleRoutes(req, res, send)) return
-      if (req.url === '/api/explain' && req.method === 'POST') return await handleExplain(req, res)
-      if (req.url === '/api/weather' && req.method === 'GET') return await handleWeather(res)
-      send(res, 404, { error: 'APIが見つかりません。' })
-    } catch (error) {
-      sendFailure(res, error)
-    }
-  })
+  return createServer(handleRequest)
 }
 
 const runDirectly = !!process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href

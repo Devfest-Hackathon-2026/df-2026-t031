@@ -17,3 +17,4 @@ test-results/
 *.keystore
 coverage/
 playwright-report/
+.vercel/

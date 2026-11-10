@@ -1,9 +1,10 @@
 /**
  * Google ログインと Google Health API（RC-8）。
- * OAuth はサーバーで行い、トークンはこのプロセスのメモリにだけ置く（画面・localStorage・Gemini には渡さない）。
+ * OAuth はサーバーで行う。トークンは AES-GCM で暗号化した HttpOnly Cookie にだけ置く（画面の JS・localStorage・Gemini には渡さない）。
+ * Vercel のようにリクエストごとに別インスタンスへ届く環境でも続くよう、サーバー側に状態を持たない。鍵は SESSION_SECRET。
  * 画面に返すのは「今日の歩数・活動時間・昨夜の睡眠時間・心拍の区分」の集計値だけ。時系列や生の心拍は返さない。
  */
-import {createHash,randomBytes} from 'node:crypto'
+import {createCipheriv,createDecipheriv,createHash,randomBytes} from 'node:crypto'
 import type {IncomingMessage,ServerResponse} from 'node:http'
 import {publicOrigin,secureCookie} from './hosting.ts'
 import {heartCategory,type HealthItem,type HealthSummary,type HeartCategory} from '../src/domain/restNeed.ts'
@@ -24,20 +25,37 @@ const SCOPE_KEYS=Object.keys(HEALTH_SCOPES) as HealthScopeKey[]
 const SESSION_COOKIE='epoku_sid',STATE_COOKIE='epoku_oauth'
 const SESSION_TTL=8*3600_000,PENDING_TTL=10*60_000
 
-interface Session{access:string;refresh?:string;expiresAt:number;granted:Set<HealthScopeKey>;name:string|null;createdAt:number}
-const sessions=new Map<string,Session>()
-const pending=new Map<string,{verifier:string;redirectUri:string;at:number}>()
+interface Session{id:string;access:string;refresh?:string;expiresAt:number;granted:Set<HealthScopeKey>;name:string|null;createdAt:number}
+interface Pending{state:string;verifier:string;redirectUri:string;at:number}
+/** ログアウト済みのセッション ID（同じインスタンスに古い Cookie が届いたときに弾く。Cookie 自体は消している） */
+const revoked=new Map<string,number>()
+
+/** Cookie を暗号化する鍵。SESSION_SECRET から作る。未設定ならプロセスごとの乱数（ローカル開発用） */
+let fallbackKey:Buffer|null=null
+function sealKey(){const secret=process.env.SESSION_SECRET;if(secret)return createHash('sha256').update('epoku-session:'+secret).digest();return fallbackKey??=randomBytes(32)}
+function seal(data:unknown){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',sealKey(),iv);const body=Buffer.concat([c.update(JSON.stringify(data),'utf8'),c.final()]);return Buffer.concat([iv,c.getAuthTag(),body]).toString('base64url')}
+function unseal(value:string|undefined):unknown{if(!value)return null;try{const raw=Buffer.from(value,'base64url');if(raw.length<29)return null;const d=createDecipheriv('aes-256-gcm',sealKey(),raw.subarray(0,12));d.setAuthTag(raw.subarray(12,28));return JSON.parse(Buffer.concat([d.update(raw.subarray(28)),d.final()]).toString('utf8'))}catch{return null}}
+const packSession=(s:Session)=>seal({...s,granted:[...s.granted]})
+function unpackSession(value:string|undefined):Session|null{
+ const v=unseal(value) as (Omit<Session,'granted'>&{granted?:unknown})|null
+ if(!v||typeof v.id!=='string'||typeof v.access!=='string'||!Number.isFinite(v.expiresAt)||!Number.isFinite(v.createdAt))return null
+ if(Date.now()-v.createdAt>SESSION_TTL||revoked.has(v.id))return null
+ const granted=new Set(SCOPE_KEYS.filter(k=>Array.isArray(v.granted)&&v.granted.includes(k)))
+ return {id:v.id,access:v.access,refresh:typeof v.refresh==='string'?v.refresh:undefined,expiresAt:v.expiresAt,granted,name:typeof v.name==='string'?v.name:null,createdAt:v.createdAt}
+}
 
 type Json=(res:ServerResponse,status:number,data:unknown)=>void
 const token=()=>randomBytes(32).toString('base64url')
 function cookies(req:IncomingMessage){const out:Record<string,string>={};for(const part of (req.headers.cookie||'').split(';')){const i=part.indexOf('=');if(i>0)out[part.slice(0,i).trim()]=decodeURIComponent(part.slice(i+1).trim())}return out}
 const cookie=(name:string,value:string,maxAge:number)=>`${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie()?'; Secure':''}`
 function redirect(res:ServerResponse,location:string,setCookie:string[]=[]){res.writeHead(302,{Location:location,'Cache-Control':'no-store','Set-Cookie':setCookie});res.end()}
-export const oauthConfigured=()=>!!(process.env.GOOGLE_OAUTH_CLIENT_ID&&process.env.GOOGLE_OAUTH_CLIENT_SECRET)
-/** リダイレクトURIは環境変数が優先。次に公開オリジン（Cloud Run）、無ければ今開いているホスト（127.0.0.1 / localhost）に合わせる */
+/** Vercel など複数インスタンスで動く環境では、共通の SESSION_SECRET が無いと Cookie を読めないので未接続扱いにする */
+export const oauthConfigured=()=>!!(process.env.GOOGLE_OAUTH_CLIENT_ID&&process.env.GOOGLE_OAUTH_CLIENT_SECRET&&(process.env.SESSION_SECRET||!process.env.VERCEL))
+/** リダイレクトURIは環境変数が優先。次に公開オリジン、無ければ今開いているホスト（127.0.0.1 / localhost）に合わせる */
 function redirectUriFor(req:IncomingMessage){return process.env.GOOGLE_OAUTH_REDIRECT_URI||`${publicOrigin()||`http://${req.headers.host}`}/api/auth/google/callback`}
-function sweep(){const t=Date.now();for(const [k,v] of pending)if(t-v.at>PENDING_TTL)pending.delete(k);for(const [k,v] of sessions)if(t-v.createdAt>SESSION_TTL)sessions.delete(k)}
-function sessionOf(req:IncomingMessage){sweep();const sid=cookies(req)[SESSION_COOKIE];return sid?{sid,session:sessions.get(sid)}:{sid:null,session:undefined}}
+function sweep(){const t=Date.now();for(const [k,at] of revoked)if(t-at>SESSION_TTL)revoked.delete(k)}
+function sessionOf(req:IncomingMessage){sweep();return unpackSession(cookies(req)[SESSION_COOKIE])??undefined}
+const sessionCookie=(s:Session)=>cookie(SESSION_COOKIE,packSession(s),Math.max(1,Math.floor((s.createdAt+SESSION_TTL-Date.now())/1000)))
 function grantedFrom(scope:unknown){const list=typeof scope==='string'?scope.split(/\s+/):[];return new Set(SCOPE_KEYS.filter(k=>list.includes(HEALTH_SCOPES[k])))}
 /** id_token は Google のトークンエンドポイントから TLS で直接受け取ったものなので、表示名を取り出すだけに使う（メール・IDは保持しない） */
 function displayName(idToken:unknown){if(typeof idToken!=='string')return null;try{const p=JSON.parse(Buffer.from(idToken.split('.')[1]||'','base64url').toString('utf8'));const n=typeof p.given_name==='string'?p.given_name:typeof p.name==='string'?p.name:null;return n?n.slice(0,40):null}catch{return null}}
@@ -140,46 +158,48 @@ export async function healthSummary(access:string,granted:Set<HealthScopeKey>,no
 export async function handleGoogleRoutes(req:IncomingMessage,res:ServerResponse,json:Json):Promise<boolean>{
  const url=new URL(req.url||'/','http://local')
  if(url.pathname==='/api/auth/status'&&req.method==='GET'){
-  const {session}=sessionOf(req)
+  const session=sessionOf(req)
   json(res,200,{configured:oauthConfigured(),connected:!!session,name:session?.name??null,granted:session?SCOPE_KEYS.filter(k=>session.granted.has(k)):[]});return true
  }
  if(url.pathname==='/api/auth/google/start'&&req.method==='GET'){
   if(!oauthConfigured()){json(res,503,{error:'Googleログインは未接続です。サーバーのGOOGLE_OAUTH_CLIENT_IDとGOOGLE_OAUTH_CLIENT_SECRETを設定してください。'});return true}
   const wanted=(url.searchParams.get('items')||'').split(',').filter((k):k is HealthScopeKey=>SCOPE_KEYS.includes(k as HealthScopeKey))
-  sweep();const state=token(),verifier=token(),redirectUri=redirectUriFor(req)
-  pending.set(state,{verifier,redirectUri,at:Date.now()})
+  const state=token(),verifier=token(),redirectUri=redirectUriFor(req)
+  const pendingCookie=seal({state,verifier,redirectUri,at:Date.now()} satisfies Pending)
   const auth=new URL(AUTH_URL);auth.search=new URLSearchParams({client_id:process.env.GOOGLE_OAUTH_CLIENT_ID!,redirect_uri:redirectUri,response_type:'code',scope:['openid','profile',...wanted.map(k=>HEALTH_SCOPES[k])].join(' '),access_type:'offline',prompt:'consent',include_granted_scopes:'true',state,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'}).toString()
-  redirect(res,auth.toString(),[cookie(STATE_COOKIE,state,600)]);return true
+  redirect(res,auth.toString(),[cookie(STATE_COOKIE,pendingCookie,PENDING_TTL/1000)]);return true
  }
  if(url.pathname==='/api/auth/google/callback'&&req.method==='GET'){
-  const state=url.searchParams.get('state')||'',code=url.searchParams.get('code'),p=pending.get(state)
+  const state=url.searchParams.get('state')||'',code=url.searchParams.get('code'),p=unseal(cookies(req)[STATE_COOKIE]) as Pending|null
   const clear=cookie(STATE_COOKIE,'',0)
-  if(!state||!p||cookies(req)[STATE_COOKIE]!==state){if(state)pending.delete(state);redirect(res,'/?health=state-error',[clear]);return true}
-  pending.delete(state)
+  if(!state||!p||p.state!==state||!(Date.now()-p.at<=PENDING_TTL)){redirect(res,'/?health=state-error',[clear]);return true}
   if(!code){redirect(res,'/?health=denied',[clear]);return true}
   try{
    const t=await tokenRequest({grant_type:'authorization_code',code,redirect_uri:p.redirectUri,code_verifier:p.verifier})
    if(!t.access_token)throw Error('token')
-   const sid=token();sessions.set(sid,{access:t.access_token,refresh:t.refresh_token,expiresAt:Date.now()+(t.expires_in||3600)*1000,granted:grantedFrom(t.scope),name:displayName(t.id_token),createdAt:Date.now()})
-   const old=cookies(req)[SESSION_COOKIE];if(old)sessions.delete(old)
-   redirect(res,'/?health=connected',[clear,cookie(SESSION_COOKIE,sid,SESSION_TTL/1000)])
+   const session:Session={id:token(),access:t.access_token,refresh:t.refresh_token,expiresAt:Date.now()+(t.expires_in||3600)*1000,granted:grantedFrom(t.scope),name:displayName(t.id_token),createdAt:Date.now()}
+   const old=sessionOf(req);if(old)revoked.set(old.id,Date.now())
+   redirect(res,'/?health=connected',[clear,sessionCookie(session)])
   }catch{redirect(res,'/?health=error',[clear])}
   return true
  }
  if(url.pathname==='/api/auth/logout'&&req.method==='POST'){
-  const {sid,session}=sessionOf(req)
-  if(sid)sessions.delete(sid)
-  if(session){const t=session.refresh||session.access;await fetch(REVOKE_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token:t}),signal:AbortSignal.timeout(10000)}).catch(()=>{})}
+  const session=sessionOf(req)
+  if(session){revoked.set(session.id,Date.now());const t=session.refresh||session.access;await fetch(REVOKE_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token:t}),signal:AbortSignal.timeout(10000)}).catch(()=>{})}
   res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,'',0));json(res,200,{connected:false});return true
  }
  if(url.pathname==='/api/google-health/summary'&&req.method==='GET'){
-  const {sid,session}=sessionOf(req)
+  const session=sessionOf(req)
   if(!session){json(res,401,{error:'Google Healthに接続していません。'});return true}
-  try{json(res,200,await healthSummary(await accessToken(session),session.granted))}
-  catch(e){const status=(e as {status?:number}).status;if(status===401){if(sid)sessions.delete(sid);res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,'',0));json(res,401,{error:'接続の有効期限が切れました。もう一度接続してください。'})}else json(res,502,{error:'Google Healthから読み取れませんでした。手入力で続けられます。'})}
+  try{
+   const before=session.access,access=await accessToken(session),summary=await healthSummary(access,session.granted)
+   if(session.access!==before)res.setHeader('Set-Cookie',sessionCookie(session))
+   json(res,200,summary)
+  }
+  catch(e){const status=(e as {status?:number}).status;if(status===401){revoked.set(session.id,Date.now());res.setHeader('Set-Cookie',cookie(SESSION_COOKIE,'',0));json(res,401,{error:'接続の有効期限が切れました。もう一度接続してください。'})}else json(res,502,{error:'Google Healthから読み取れませんでした。手入力で続けられます。'})}
   return true
  }
  return false
 }
 /** テスト用 */
-export function resetGoogleSessions(){sessions.clear();pending.clear()}
+export function resetGoogleSessions(){revoked.clear();fallbackKey=null}
