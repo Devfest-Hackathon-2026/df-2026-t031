@@ -10,6 +10,7 @@ import {WEATHER_LABEL} from '../lib/weather.ts'
 import {Cloud,CloudRain,Snowflake} from 'lucide-react'
 import {shadowPolygon,treeShadow} from '../domain/shadowPolygons.ts'
 import {loadGoogleMaps} from '../lib/maps.ts'
+import {makeWheelClassifier} from '../lib/wheel.ts'
 import type {AreaDataset,LatLng,Spot,SunPosition,WeatherCondition,XY} from '../domain/types.ts'
 const CityMap=lazy(()=>import('./CityMap.tsx'))
 import {LEVEL_COLOR,type CityHandle,type Bubble} from './CityMap.tsx'
@@ -28,6 +29,12 @@ export default memo(function MapView({dataset,spots,selected,sun,day,minutes,sho
  const [view,setView]=useState({x:0,y:0,span:1500}),svg=useRef<SVGSVGElement>(null),drag=useRef<{x:number;y:number;vx:number;vy:number;moved:boolean}|null>(null)
  const city=useRef<CityHandle>(null),googleEl=useRef<HTMLDivElement>(null),gmap=useRef<google.maps.Map|null>(null),gmarkers=useRef<google.maps.Marker[]>([]),[,setBearing]=useState(0)
  const useGoogle=(mode==='google2d'||mode==='google3d')&&!!apiKey.trim()
+ // 2D の地図: トラックパッドの二本指スライドで移動、ピンチとマウスのホイールで拡大・縮小（React の onWheel は止められないので直接登録する）
+ useEffect(()=>{const el=svg.current;if(!el)return;const kind=makeWheelClassifier()
+  const onWheel=(e:WheelEvent)=>{e.preventDefault();const w=el.getBoundingClientRect().width||700,line=e.deltaMode===1?16:1
+   if(kind(e)==='pan'){setView(v=>{const k=v.span/w;return {...v,x:v.x+e.deltaX*line*k,y:v.y+e.deltaY*line*k}});return}
+   const f=Math.exp(Math.max(-1,Math.min(1,e.deltaY*line*(e.ctrlKey?.01:.002))));setView(v=>({...v,span:Math.min(5000,Math.max(250,v.span*f))}))}
+  el.addEventListener('wheel',onWheel,{passive:false});return()=>el.removeEventListener('wheel',onWheel)},[mode])
  // モデル地図の建物・公園・樹木（平面座標に直して 1 回だけ作る）
  const shapes=useMemo(()=>({buildings:dataset.buildings.map(b=>({...b,xy:b.footprint.map(p=>projection.toXY(p))})),parks:dataset.parks.map(p=>p.ring.map(q=>projection.toXY(q))),trees:dataset.trees.map(t=>({...t,xy:projection.toXY(t.position)}))}),[dataset])
  const visible=(p:XY)=>Math.abs(p.x-view.x)<view.span*.75&&Math.abs(-p.y-view.y)<view.span*.6

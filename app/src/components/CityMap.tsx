@@ -8,6 +8,7 @@ import {createCity,createContext,disposeObject,worldPoint,strip,tintByHeight,typ
 import {LANDMARKS} from '../domain/landmarks.ts'
 import {solarTrack,solarVector} from '../domain/solarScene.ts'
 import {cityProjection} from './cityGeometry.ts'
+import {makeWheelClassifier} from '../lib/wheel.ts'
 import {skyPalette,weatherPalette,WEATHER_LOOK} from '../domain/skyPalette.ts'
 const WEATHER_LOOK_OF=(c:WeatherCondition|undefined)=>WEATHER_LOOK[c??'clear']??WEATHER_LOOK.clear
 import {AREA_CENTER} from '../domain/area.ts'
@@ -61,8 +62,15 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
   try{renderer=new T.WebGLRenderer({antialias:!lightQuality,alpha:false,preserveDrawingBuffer:true,powerPreference:'high-performance'})}catch{latest.current.onError('この端末では3Dを表示できないため、2Dモデルに切り替えます。');return}
   renderer.setPixelRatio(Math.min(devicePixelRatio,lightQuality?1:innerWidth<700?1.35:1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;renderer.domElement.tabIndex=0;renderer.domElement.setAttribute('aria-label','3D都市。ドラッグで回転、ホイールまたはピンチで拡大縮小。');element.prepend(renderer.domElement)
   const scene=new T.Scene();scene.background=new T.Color('#efe6e2');scene.fog=new T.Fog('#efe6e2',1700,4000)
-  const camera=new T.PerspectiveCamera(42,Math.max(1,element.clientWidth)/Math.max(1,element.clientHeight),1,9000);camera.position.set(-260,330,420)
+  const camera=new T.PerspectiveCamera(42,Math.max(1,element.clientWidth)/Math.max(1,element.clientHeight),10,9000);camera.position.set(-260,330,420)
   const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=!lightQuality;controls.dampingFactor=.09;controls.maxPolarAngle=Math.PI*.47;controls.minDistance=60;controls.maxDistance=2600;controls.screenSpacePanning=false;controls.saveState()
+  // トラックパッドの二本指スライドで地図を動かす（Windows では二本指スライドがホイールとして届き、OrbitControls だと拡大・縮小になるため）。ピンチとマウスのホイールは OrbitControls に任せる
+  const wheelKind=makeWheelClassifier(),wheelController=new AbortController()
+  element.addEventListener('wheel',e=>{if(wheelKind(e)!=='pan')return;e.preventDefault();e.stopPropagation()
+   const dist=camera.position.distanceTo(controls.target),k=2*dist*Math.tan(T.MathUtils.degToRad(camera.fov/2))/Math.max(1,element.clientHeight)
+   const right=new T.Vector3().setFromMatrixColumn(camera.matrix,0);right.y=0;right.normalize();const forward=new T.Vector3().crossVectors(camera.up,right).normalize()
+   const scale=e.deltaMode===1?16:1,move=right.multiplyScalar(e.deltaX*k*scale).add(forward.multiplyScalar(-e.deltaY*k*scale))
+   controls.target.add(move);camera.position.add(move);controls.update();invalidate()},{passive:false,capture:true,signal:wheelController.signal})
   if(cameraState.current){camera.position.copy(cameraState.current.position);controls.target.copy(cameraState.current.target);controls.update()}
   const hemi=new T.HemisphereLight('#f6f5f3','#a5a29b',2.2);scene.add(hemi)
   const light=new T.DirectionalLight('#fff3df',3);light.castShadow=true;light.shadow.mapSize.set(lightQuality?1024:innerWidth<700?1536:2048,lightQuality?1024:innerWidth<700?1536:2048);light.shadow.camera.left=-650;light.shadow.camera.right=650;light.shadow.camera.top=650;light.shadow.camera.bottom=-650;light.shadow.camera.near=5;light.shadow.camera.far=3200;light.shadow.normalBias=.32;light.shadow.bias=-.00008;light.shadow.radius=3;scene.add(light,light.target)
@@ -113,7 +121,7 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
    const changed=controls.update(),look=WEATHER_LOOK_OF(latest.current.weather);if(look.precip&&!reducedMotion)dirty=true;if(!dirty&&!changed)return
    anchor.copy(controls.target);r.path.position.copy(anchor);origin.position.copy(anchor).add(new T.Vector3(0,.6,0));const sun=latest.current.sun,vector=solarVector(sun,1500),daylight=sun.altitude>0;light.position.copy(controls.target).add(new T.Vector3(vector.x,Math.max(15,vector.y),vector.z));light.target.position.copy(controls.target);const palette=weatherPalette(skyPalette(sun.altitude),latest.current.weather);for(const m of wheelLights)m.emissiveIntensity=sun.altitude>2?0:sun.altitude>-4?.7:1.6;light.color.set(palette.sun);light.intensity=palette.sunIntensity;light.castShadow=latest.current.showShadow&&sun.altitude>2&&look.shadows;hemi.color.set(palette.hemiSky);hemi.groundColor.set(palette.hemiGround);hemi.intensity=palette.hemiIntensity;renderer.toneMappingExposure=palette.exposure;(scene.background as T.Color).set(palette.sky);if(scene.fog instanceof T.Fog){scene.fog.color.set(palette.sky);scene.fog.near=look.fogNear;scene.fog.far=look.fogFar}
    drops.visible=!!look.precip;if(look.precip)moveDrops(look.precip,look.precipAmount,reducedMotion?0:performance.now()/1000)
-   r.path.visible=latest.current.showPath;r.orb.visible=latest.current.showPath&&daylight;r.ray.visible=false;const position=solarVector(sun,RADIUS);orb.position.copy(anchor).add(new T.Vector3(position.x,position.y,position.z));ray.geometry.setFromPoints([anchor.clone(),anchor.clone().add(new T.Vector3(position.x,.8,position.z))]);if(windowDetail)windowDetail.visible=camera.position.distanceTo(controls.target)<1050;renderer.render(scene,camera);if(performance.now()-lastStats>1000){element.dataset.drawCalls=String(renderer.info.render.calls);element.dataset.triangles=String(renderer.info.render.triangles);element.dataset.quality=latest.current.quality??'balanced';lastStats=performance.now()}
+   r.path.visible=latest.current.showPath;r.orb.visible=latest.current.showPath&&daylight;r.ray.visible=false;const position=solarVector(sun,RADIUS);orb.position.copy(anchor).add(new T.Vector3(position.x,position.y,position.z));ray.geometry.setFromPoints([anchor.clone(),anchor.clone().add(new T.Vector3(position.x,.8,position.z))]);if(windowDetail)windowDetail.visible=camera.position.distanceTo(controls.target)<420;renderer.render(scene,camera);if(performance.now()-lastStats>1000){element.dataset.drawCalls=String(renderer.info.render.calls);element.dataset.triangles=String(renderer.info.render.triangles);element.dataset.quality=latest.current.quality??'balanced';lastStats=performance.now()}
     // 地図の向き（北が上から何度回っているか）を親へ知らせる
     const bearing=Math.round((Math.atan2(camera.position.x-controls.target.x,camera.position.z-controls.target.z)*180/Math.PI+360)%360);if(Math.abs(bearing-lastBearing)>=2){lastBearing=bearing;latest.current.onBearing?.(bearing)}
    const bubbles=latest.current.bubbles??[],spot=latest.current.spots.find(s=>s.id===latest.current.selected);if(spot&&!bubbles.some(b=>b.id===spot.id))project(worldPoint(spot.position,10),selectedLabel.current);else if(selectedLabel.current)selectedLabel.current.style.display='none'
@@ -128,7 +136,7 @@ export default forwardRef<CityHandle,Props>(function CityMap(props,ref){
     dirty=false
    }
   animate();setReady(true)
-  return()=>{cameraState.current={position:camera.position.clone(),target:controls.target.clone()};disposed=true;contextController.abort();cancelAnimationFrame(frame);observer.disconnect();controls.removeEventListener('change',invalidate);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);disposeObject(scene);light.shadow.dispose();renderer.dispose();renderer.domElement.remove();runtime.current=null}
+  return()=>{cameraState.current={position:camera.position.clone(),target:controls.target.clone()};disposed=true;contextController.abort();wheelController.abort();cancelAnimationFrame(frame);observer.disconnect();controls.removeEventListener('change',invalidate);controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('webglcontextlost',lost);disposeObject(scene);light.shadow.dispose();renderer.dispose();renderer.domElement.remove();runtime.current=null}
  },[props.dataset,props.quality])
  useEffect(()=>{const r=runtime.current;if(!r)return;const replacement=makeTrack(props.day,r.anchor);r.scene.remove(r.path);disposeObject(r.path);r.path=replacement;r.scene.add(replacement);r.invalidate()},[props.day,props.dataset,props.quality,ready])
  useEffect(()=>{runtime.current?.invalidate()},[props.sun,props.showShadow,props.showPath,props.minutes,props.bubbles,props.showLabels,props.weather])

@@ -9,7 +9,9 @@ import {FERRIS_WHEEL_NAME} from '../domain/landmarks.ts'
 export const cityProjection=new LocalProjection(AREA_CENTER)
 export function worldPoint(p:LatLng,y=0){const q=cityProjection.toXY(p);return new T.Vector3(q.x,y,-q.y)}
 /** 外形（緯度経度）を平面の形に。rotateX(-90°) すると x=東・-z=北 に置かれる */
-function shapeFrom(ring:LatLng[]){const pts=ring.map(p=>cityProjection.toXY(p)),s=new T.Shape();pts.forEach((p,i)=>i?s.lineTo(p.x,p.y):s.moveTo(p.x,p.y));s.closePath();return s}
+function shapeFrom(ring:LatLng[],inset=0){const pts=ring.map(p=>cityProjection.toXY(p)),cx=pts.reduce((n,p)=>n+p.x,0)/pts.length,cy=pts.reduce((n,p)=>n+p.y,0)/pts.length,s=new T.Shape();pts.forEach((p,i)=>{const d=Math.hypot(p.x-cx,p.y-cy),k=inset&&d>inset*4?1-inset/d:1,x=cx+(p.x-cx)*k,y=cy+(p.y-cy)*k;i?s.lineTo(x,y):s.moveTo(x,y)});s.closePath();return s}
+/** 建物ごとに少し違う縮め幅と屋根の高さ（0.1〜0.4m）。となり合う建物の壁や屋根がぴったり重なると、どちらを手前に描くか決まらず、ちらつく（ザラザラに見える）ため */
+const jitter=(i:number)=>.1+(i*37%7)*.05
 /** 中心からの近さ（緯度経度の差の二乗。並べ替えと「近くだけ窓を描く」に使う） */
 const distance=(p:LatLng)=>(p.lat-AREA_CENTER.lat)**2+(p.lng-AREA_CENTER.lng)**2
 /** 子要素の形と材質を解放する */
@@ -21,7 +23,7 @@ export function createCity(dataset:AreaDataset,lightQuality=false){
  const buckets:T.BufferGeometry[][]=[[],[],[],[],[]],outlines:number[]=[],windows:number[]=[]
  const fallback=new T.Group();fallback.name='plateau-fallback'
  // PLATEAU の .glb を読めないときの代わり（外形から箱を作る）。高層ビルはガラス色にそろえる
- const fallbackGeometry=dataset.buildings.filter(b=>b.heightSource==='plateau'&&b.footprint.length>=3).map(b=>{const g=new T.ExtrudeGeometry(shapeFrom(b.footprint),{depth:b.height,bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);g.deleteAttribute('uv');return {g,tall:b.height>=90}})
+ const fallbackGeometry=dataset.buildings.filter(b=>b.heightSource==='plateau'&&b.footprint.length>=3).map((b,i)=>{const g=new T.ExtrudeGeometry(shapeFrom(b.footprint,jitter(i)),{depth:b.height+jitter(i),bevelEnabled:false,steps:1,curveSegments:1});g.rotateX(-Math.PI/2);g.deleteAttribute('uv');return {g,tall:b.height>=90}})
  addMerged(fallback,fallbackGeometry.filter(x=>!x.tall).map(x=>x.g),'#d9d5ca',true);addMerged(fallback,fallbackGeometry.filter(x=>x.tall).map(x=>x.g),'#a3b7c6',true,{roughness:.3,metalness:.28});root.add(fallback)
  // 見てすぐ分かるように素材を分ける: 赤レンガ倉庫はレンガ色、日本丸は白、90m 以上の高層ビルはガラス。観覧車は箱ではなく形を作る
  const special={glass:[] as T.BufferGeometry[],brick:[] as T.BufferGeometry[],white:[] as T.BufferGeometry[]}
@@ -29,8 +31,8 @@ export function createCity(dataset:AreaDataset,lightQuality=false){
  ordered.forEach((b,index)=>{
   if(b.footprint.length<3||!(b.height>0))return
   if(b.name===FERRIS_WHEEL_NAME){root.add(createFerrisWheel(b.footprint));return}
-  const geometry=new T.ExtrudeGeometry(shapeFrom(b.footprint),{depth:Math.max(.5,b.height-b.minHeight),bevelEnabled:false,steps:1,curveSegments:1});geometry.rotateX(-Math.PI/2);geometry.translate(0,b.minHeight,0);geometry.deleteAttribute('uv');(b.name?.includes('赤レンガ倉庫')?special.brick:b.name==='日本丸'?special.white:b.height>=90?special.glass:buckets[index%5]).push(geometry)
-  const ring=b.footprint.map(p=>cityProjection.toXY(p));for(let k=0;k<ring.length;k++){const a=ring[k],c=ring[(k+1)%ring.length];outlines.push(a.x,b.height+.05,-a.y,c.x,b.height+.05,-c.y)}
+  const geometry=new T.ExtrudeGeometry(shapeFrom(b.footprint,jitter(index)),{depth:Math.max(.5,b.height-b.minHeight)+jitter(index),bevelEnabled:false,steps:1,curveSegments:1});geometry.rotateX(-Math.PI/2);geometry.translate(0,b.minHeight,0);geometry.deleteAttribute('uv');(b.name?.includes('赤レンガ倉庫')?special.brick:b.name==='日本丸'?special.white:b.height>=90?special.glass:buckets[index%5]).push(geometry)
+  const ring=b.footprint.map(p=>cityProjection.toXY(p));for(let k=0;k<ring.length;k++){const a=ring[k],c=ring[(k+1)%ring.length];outlines.push(a.x,b.height+jitter(index)+.08,-a.y,c.x,b.height+jitter(index)+.08,-c.y)}
   if(b.height<10||ring.length>45||windows.length>(lightQuality?65000:180000)||distance(b.footprint[0])>.00009)return
   // 窓の帯: 各面に 3.4m ごとの細い帯を、壁から 15cm 外に貼る（中心から近い 10m 以上の建物だけ）
   for(let k=0;k<ring.length;k++){const a=ring[k],c=ring[(k+1)%ring.length],len=Math.hypot(c.x-a.x,c.y-a.y);if(len<6)continue
@@ -41,7 +43,7 @@ export function createCity(dataset:AreaDataset,lightQuality=false){
  });['#ebe4da','#e4ddd2','#efe9e1','#e1d9ce','#e8e1d7'].forEach((color,i)=>addMerged(root,buckets[i],color,true))
  addMerged(root,special.glass,'#a3b7c6',true,{roughness:.3,metalness:.28});addMerged(root,special.brick,'#a9563c',true,{roughness:.96});addMerged(root,special.white,'#f4f2ec',true,{roughness:.6})
  const lineGeo=new T.BufferGeometry();lineGeo.setAttribute('position',new T.Float32BufferAttribute(outlines,3));root.add(new T.LineSegments(lineGeo,new T.LineBasicMaterial({color:'#fbf8f3',transparent:true,opacity:.7})))
- const windowGeo=new T.BufferGeometry();windowGeo.setAttribute('position',new T.Float32BufferAttribute(windows,3));windowGeo.computeVertexNormals();const detail=new T.Mesh(windowGeo,new T.MeshStandardMaterial({color:'#a9bfd3',roughness:.45,side:T.DoubleSide}));detail.name='city-window-detail';root.add(detail)
+ const windowGeo=new T.BufferGeometry();windowGeo.setAttribute('position',new T.Float32BufferAttribute(windows,3));windowGeo.computeVertexNormals();const detail=new T.Mesh(windowGeo,new T.MeshStandardMaterial({color:'#b9c4cc',roughness:.6,side:T.DoubleSide}));detail.receiveShadow=true;detail.name='city-window-detail';root.add(detail)
  const parkGeometries=dataset.parks.filter(p=>p.ring.length>=3).map(p=>{const g=new T.ShapeGeometry(shapeFrom(p.ring));g.rotateX(-Math.PI/2);g.translate(0,.02,0);g.deleteAttribute('uv');return g});addMerged(root,parkGeometries,'#bde8ad')
  const visibleTrees=lightQuality?dataset.trees.filter((_,i)=>i%2===0):dataset.trees
  const count=visibleTrees.length,dummy=new T.Object3D(),trunks=new T.InstancedMesh(new T.CylinderGeometry(.35,.55,1,5),new T.MeshStandardMaterial({color:'#8f7f68',roughness:1}),count)
