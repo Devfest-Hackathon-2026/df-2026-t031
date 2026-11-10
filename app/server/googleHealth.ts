@@ -5,6 +5,7 @@
  */
 import {createHash,randomBytes} from 'node:crypto'
 import type {IncomingMessage,ServerResponse} from 'node:http'
+import {publicOrigin,secureCookie} from './hosting.ts'
 import {heartCategory,type HealthItem,type HealthSummary,type HeartCategory} from '../src/domain/restNeed.ts'
 
 const AUTH_URL='https://accounts.google.com/o/oauth2/v2/auth'
@@ -30,11 +31,11 @@ const pending=new Map<string,{verifier:string;redirectUri:string;at:number}>()
 type Json=(res:ServerResponse,status:number,data:unknown)=>void
 const token=()=>randomBytes(32).toString('base64url')
 function cookies(req:IncomingMessage){const out:Record<string,string>={};for(const part of (req.headers.cookie||'').split(';')){const i=part.indexOf('=');if(i>0)out[part.slice(0,i).trim()]=decodeURIComponent(part.slice(i+1).trim())}return out}
-const cookie=(name:string,value:string,maxAge:number)=>`${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`
+const cookie=(name:string,value:string,maxAge:number)=>`${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookie()?'; Secure':''}`
 function redirect(res:ServerResponse,location:string,setCookie:string[]=[]){res.writeHead(302,{Location:location,'Cache-Control':'no-store','Set-Cookie':setCookie});res.end()}
 export const oauthConfigured=()=>!!(process.env.GOOGLE_OAUTH_CLIENT_ID&&process.env.GOOGLE_OAUTH_CLIENT_SECRET)
-/** リダイレクトURIは環境変数が優先。無ければ今開いているホスト（127.0.0.1 / localhost）に合わせる */
-function redirectUriFor(req:IncomingMessage){return process.env.GOOGLE_OAUTH_REDIRECT_URI||`http://${req.headers.host}/api/auth/google/callback`}
+/** リダイレクトURIは環境変数が優先。次に公開オリジン（Cloud Run）、無ければ今開いているホスト（127.0.0.1 / localhost）に合わせる */
+function redirectUriFor(req:IncomingMessage){return process.env.GOOGLE_OAUTH_REDIRECT_URI||`${publicOrigin()||`http://${req.headers.host}`}/api/auth/google/callback`}
 function sweep(){const t=Date.now();for(const [k,v] of pending)if(t-v.at>PENDING_TTL)pending.delete(k);for(const [k,v] of sessions)if(t-v.createdAt>SESSION_TTL)sessions.delete(k)}
 function sessionOf(req:IncomingMessage){sweep();const sid=cookies(req)[SESSION_COOKIE];return sid?{sid,session:sessions.get(sid)}:{sid:null,session:undefined}}
 function grantedFrom(scope:unknown){const list=typeof scope==='string'?scope.split(/\s+/):[];return new Set(SCOPE_KEYS.filter(k=>list.includes(HEALTH_SCOPES[k])))}

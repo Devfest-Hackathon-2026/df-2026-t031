@@ -1,0 +1,10 @@
+# 秘密情報はイメージに入れない。画面用の公開設定 .env.production.local だけ通す
+.env
+.env.*
+!.env.production.local
+node_modules
+dist
+android
+e2e
+*.tsbuildinfo
+service-account*.json
