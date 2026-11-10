@@ -19,3 +19,4 @@ html,body,#root{height:100%}body{-webkit-font-smoothing:antialiased;line-height:
 .map-key{position:absolute;z-index:20;left:50%;top:84px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;background:#383a3de6;color:#eef0f1;font-size:11px}.map-key i{width:14px;height:5px;border-radius:3px;display:inline-block}.key-shade{background:#3d5f86}.key-sun{background:#f0952c}
 .scene-selected-label{position:absolute;left:0;top:0;pointer-events:none;z-index:4}.scene-selected-label span{display:block;transform:translate(-50%,-140%);background:#284e42;color:#fff;font-size:11px;padding:4px 10px;border-radius:12px;white-space:nowrap}
 @media(max-width:760px){.map-tools{right:12px;bottom:auto;top:150px}.favorite-chip{display:none}}
+@media(min-width:761px){.immersive-app.panel-spots .best-pick,.immersive-app.panel-spots .pick-tab{display:none}}
