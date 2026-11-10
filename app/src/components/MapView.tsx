@@ -1,5 +1,5 @@
 import {lazy,memo,Suspense,useEffect,useMemo,useRef,useState} from 'react'
-import {Plus,Minus,LocateFixed,Navigation,Armchair as Bench,Trash2,Droplets,House,Accessibility,MapPin} from 'lucide-react'
+import {Building2,Plus,Minus,LocateFixed,Navigation,Armchair as Bench,Trash2,Droplets,House,Accessibility,MapPin} from 'lucide-react'
 import {LocalProjection} from '../domain/geo.ts'
 import {AREA_CENTER,DEMO_USER_LOCATION} from '../domain/area.ts'
 import {buildShadowShapes} from '../domain/shadowPolygons.ts'
@@ -15,8 +15,8 @@ const CityMap=lazy(()=>import('./CityMap.tsx'))
 export type MapMode='model2d'|'model3d'|'google2d'|'google3d'
 const projection=new LocalProjection(AREA_CENTER)
 const path=(ring:XY[],dx=0,dy=0)=>ring.map(p=>`${p.x+dx},${-p.y+dy}`).join(' ')
-export const kindIcons={bench:Bench,shelter:House,picnic:Bench,toilet:Accessibility,trash:Trash2,water:Droplets}
-export const KIND_LABEL={bench:'ベンチ',shelter:'休憩所',picnic:'ピクニックテーブル',toilet:'トイレ',trash:'ゴミ箱・回収',water:'水飲み場'}
+export const kindIcons={bench:Bench,shelter:House,picnic:Bench,toilet:Accessibility,trash:Trash2,water:Droplets,indoor:Building2}
+export const KIND_LABEL={bench:'ベンチ',shelter:'休憩所',picnic:'ピクニックテーブル',toilet:'トイレ',trash:'ゴミ箱・回収',water:'水飲み場',indoor:'屋内休憩所'}
 export const spotName=(s:Spot)=>s.name||KIND_LABEL[s.kind]
 interface Props{dataset:AreaDataset;spots:Spot[];selected:string;sun:SunPosition;day:string;minutes:number;showPath:boolean;mode:MapMode;apiKey:string;location:LatLng;showShadow:boolean;adding:boolean;onSelect:(id:string)=>void;onPoint:(p:LatLng)=>void;onError:(s:string)=>void;onMode:(s:MapMode)=>void;route?:RouteSegment[]|null;levels?:ReadonlyMap<string,SeatLevel>;quality?:'balanced'|'light';onQuality?:()=>void;bubbles?:Bubble[];onBubble?:(id:string)=>void;showLabels?:boolean}
 export default memo(function MapView({dataset,spots,selected,sun,day,minutes,showPath,mode,apiKey,location,showShadow,adding,onSelect,onPoint,onError,onMode,route,levels,quality='balanced',onQuality,bubbles,onBubble,showLabels=true}:Props){

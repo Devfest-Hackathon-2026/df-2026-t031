@@ -20,6 +20,8 @@ export interface RestNeed {
   walked: WalkedBand
   available: AvailableMinutes
   wishes: RestWish[]
+  /** RC-2: 必ず満たしたい希望（wishes の一部）。満たさない地点は外し、未確認なら下げて残す */
+  must?: RestWish[]
   steps?: Sourced<number>
   activeMinutes?: Sourced<number>
   sleepHours?: Sourced<number>

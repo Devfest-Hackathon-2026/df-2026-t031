@@ -23,7 +23,7 @@ export interface XY {
 // ───────── 地点 ─────────
 
 /** 地点の種類。bench / shelter / picnic は「座れる場所」 */
-export type SpotKind = 'bench' | 'shelter' | 'picnic' | 'toilet' | 'trash' | 'water'
+export type SpotKind = 'bench' | 'shelter' | 'picnic' | 'toilet' | 'trash' | 'water' | 'indoor'
 
 export type TriState = 'yes' | 'no' | 'unknown'
 
@@ -51,6 +51,13 @@ export interface Spot {
   roofSource: RoofSource | null
   backrest: TriState
   wheelchair: 'yes' | 'limited' | 'no' | 'unknown'
+  /** RC-0: 冷房・段差なし・多目的トイレ。未設定は「未確認」として扱う */
+  cooling?: TriState
+  stepFree?: TriState
+  accessibleToilet?: TriState
+  /** 情報の出どころと現地確認した日時（RC-0・RC-4） */
+  infoSource?: 'osm' | 'field-check' | 'official' | 'user'
+  verifiedAt?: string
   /** ゴミ箱の補足（ペットボトル回収など） */
   note?: string
   /** 元データへの参照（"node/123" など） */
@@ -179,7 +186,8 @@ export interface ShadeTimeline {
 // ───────── 投稿 ─────────
 
 /** sat=座れた / full=満席だった / missing=見当たらなかった */
-export type SeatReportValue = 'sat' | 'full' | 'missing'
+/** facility = 設備が使えなかった（冷房が止まっていた・閉まっていた・トイレ使用不可など。RC-6）。空席の計算には使わない */
+export type SeatReportValue = 'sat' | 'full' | 'missing' | 'facility'
 
 /** 現地での日陰の答え合わせ。predicted は記録した時点のモデルの判定 */
 export interface ShadeCheck {

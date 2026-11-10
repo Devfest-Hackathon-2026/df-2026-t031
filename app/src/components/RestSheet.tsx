@@ -17,14 +17,16 @@ export async function disconnectGoogle(){const r=await fetch(apiUrl('/api/auth/l
 const Tag=({source}:{source:Sourced<unknown>['source']})=><span className={'source-tag '+source}>{SOURCE_LABEL[source]}</span>
 
 /** 休憩判断のシート（RC-1・RC-7）。ルール判断が主で、Gemini は任意のひと言だけ */
-export function RestSheet({wbgt,temperatureC,walkingMinutes,prefs,setPrefs,google,onGoogleChange,onShowSpots,notify}:{wbgt:number|null;temperatureC:number|null;walkingMinutes:number;prefs:RestPrefs;setPrefs:(p:RestPrefs)=>void;google:GoogleStatus|null;onGoogleChange:()=>void;onShowSpots:(need:RestNeed)=>void;notify:(m:string)=>void}){
- const [need,setNeed]=useState<RestNeed>(()=>({...DEFAULT_NEED,wishes:prefs.lastWishes}))
+export function RestSheet({wbgt,temperatureC,walkingMinutes,prefs,setPrefs,google,onGoogleChange,onShowSpots,notify,initial}:{initial?:RestNeed;wbgt:number|null;temperatureC:number|null;walkingMinutes:number;prefs:RestPrefs;setPrefs:(p:RestPrefs)=>void;google:GoogleStatus|null;onGoogleChange:()=>void;onShowSpots:(need:RestNeed)=>void;notify:(m:string)=>void}){
+ const [need,setNeed]=useState<RestNeed>(()=>initial??({...DEFAULT_NEED,wishes:prefs.lastWishes}))
  const [items,setItems]=useState<HealthKey[]>(['activity','sleep','heart']),[loading,setLoading]=useState(false),[advice,setAdvice]=useState<{text:string;replaced:boolean}|null>(null),[asking,setAsking]=useState(false)
  const judgement=useMemo(()=>judgeRest(need,wbgt,walkingMinutes),[need,wbgt,walkingMinutes])
  const hasHealth=!!(need.steps||need.activeMinutes||need.sleepHours||need.heart)
  const set=<K extends keyof RestNeed>(k:K,v:RestNeed[K])=>{setNeed(n=>({...n,[k]:v}));setAdvice(null)}
- const toggleWish=(w:RestWish)=>set('wishes',need.wishes.includes(w)?need.wishes.filter(x=>x!==w):[...need.wishes,w])
- const clearHealth=()=>{setNeed(n=>({fatigue:n.fatigue,walked:n.walked,available:n.available,wishes:n.wishes}));setAdvice(null)}
+ const toggleWish=(w:RestWish)=>setNeed(n=>n.wishes.includes(w)?{...n,wishes:n.wishes.filter(x=>x!==w),must:(n.must??[]).filter(x=>x!==w)}:{...n,wishes:[...n.wishes,w]})
+ // 必須／できれば（RC-2）: 必須は満たさない場所を外し、未確認なら下げて残す
+ const toggleMust=(w:RestWish)=>setNeed(n=>({...n,must:(n.must??[]).includes(w)?(n.must??[]).filter(x=>x!==w):[...(n.must??[]),w]}))
+ const clearHealth=()=>{setNeed(n=>({fatigue:n.fatigue,walked:n.walked,available:n.available,wishes:n.wishes,must:n.must}));setAdvice(null)}
  const loadHealth=async()=>{setLoading(true);try{const r=await fetch(apiUrl('/api/google-health/summary'),{signal:AbortSignal.timeout(20000)});const body=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401)onGoogleChange();throw Error(body.error||'Google Healthから読み取れませんでした。')}
   const s=body as HealthSummary;if(!s.linked){notify('Google Healthにデータがありません（Fitbit等の連携が必要です）。手入力で続けられます。');return}
   const next=applyHealth(need,s);setNeed(next);setAdvice(null);const got=['steps','activeMinutes','sleepHours','heart'].filter(k=>next[k as keyof RestNeed]).length;notify(got?`Google Healthから${got}項目を読み込みました。`:'今日の値はまだありませんでした。手入力で続けられます。')}
@@ -40,6 +42,7 @@ export function RestSheet({wbgt,temperatureC,walkingMinutes,prefs,setPrefs,googl
    <fieldset className="chip-field"><legend>歩いた時間 <small>アプリを開いてから約{walkingMinutes}分</small></legend><div className="chip-row">{(Object.keys(WALKED_LABEL) as WalkedBand[]).map(w=><button key={w} aria-pressed={need.walked===w} onClick={()=>set('walked',w)}>{WALKED_LABEL[w]}</button>)}</div></fieldset>
    <fieldset className="chip-field"><legend>休める時間</legend><div className="chip-row">{AVAILABLE_OPTIONS.map(a=><button key={a} aria-pressed={need.available===a} onClick={()=>set('available',a as AvailableMinutes)}>{a}分</button>)}</div></fieldset>
    <fieldset className="chip-field"><legend>ほしいもの <small>いくつでも</small></legend><div className="chip-row">{WISHES.map(w=><button key={w} aria-pressed={need.wishes.includes(w)} onClick={()=>toggleWish(w)}>{WISH_LABEL[w]}</button>)}</div></fieldset>
+   {need.wishes.length?<fieldset className="chip-field must-field"><legend>絶対に必要なもの <small>選ばなければ「できれば」</small></legend><div className="chip-row">{need.wishes.map(w=><button key={w} aria-pressed={!!need.must?.includes(w)} onClick={()=>toggleMust(w)}>{need.must?.includes(w)?'必須':'できれば'}・{WISH_LABEL[w]}</button>)}</div></fieldset>:null}
   </section>
   <section className="setting-section"><h3><HeartPulse size={17}/>健康データ <small>任意・なくても判断できます</small></h3>
    {hasHealth?<ul className="health-values">{need.steps?<li>歩数 <b>{need.steps.value.toLocaleString()}歩</b><Tag source={need.steps.source}/></li>:null}{need.activeMinutes?<li>活動時間 <b>{need.activeMinutes.value}分</b><Tag source={need.activeMinutes.source}/></li>:null}{need.sleepHours?<li>睡眠 <b>{need.sleepHours.value}時間</b><Tag source={need.sleepHours.source}/></li>:null}{need.heart?<li>心拍 <b>{HEART_LABEL[need.heart.value]}</b><Tag source={need.heart.source}/></li>:null}</ul>:<p className="field-note">健康データは使っていません。上の手入力だけで判断します。</p>}

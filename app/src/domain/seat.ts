@@ -38,7 +38,7 @@ export const SEAT_MODEL = {
   baseEvidence: 5,
 }
 
-export const SEAT_KINDS: ReadonlySet<SpotKind> = new Set(['bench', 'shelter', 'picnic'])
+export const SEAT_KINDS: ReadonlySet<SpotKind> = new Set(['bench', 'shelter', 'picnic', 'indoor'])
 export const isSeatSpot = (s: Spot) => SEAT_KINDS.has(s.kind)
 
 type Curve = [number, number][]
@@ -286,7 +286,7 @@ export function historyOffset(
   let wsum = 0
   let rsum = 0
   for (const r of reports) {
-    if (r.spotId !== spotId || r.value === 'missing' || !r.features || r.features.aiProbability === null) continue
+    if (r.spotId !== spotId || (r.value !== 'sat' && r.value !== 'full') || !r.features || r.features.aiProbability === null) continue
     const minutesAgo = (now.getTime() - Date.parse(r.reportedAt)) / 60_000
     if (!(minutesAgo > SEAT_MODEL.postWindowMin)) continue
     const dh = r.features.hour - hour
@@ -358,11 +358,11 @@ export function predictSeat(inp: SeatInputs): SeatPrediction {
       vsum += w * (value === 'sat' ? 1 : 0)
       liveWeight += w
     }
-    for (const p of posts) if (p.value !== 'missing') add(p.value, postWeight(p.minutesAgo))
+    for (const p of posts) if (p.value === 'sat' || p.value === 'full') add(p.value, postWeight(p.minutesAgo))
     // 近くの地点の投稿（150m 以内）。遠いほど・古いほど軽い
     for (const n of inp.neighbors ?? []) {
       for (const p of recentPosts(n.spotId, inp.reports, inp.now)) {
-        if (p.value === 'missing') continue
+        if (p.value !== 'sat' && p.value !== 'full') continue
         add(p.value, postWeight(p.minutesAgo) * SEAT_MODEL.nearbyPostWeight * (1 - n.distanceM / SEAT_MODEL.nearbyPostRadiusM))
         nearbyPosts++
       }
